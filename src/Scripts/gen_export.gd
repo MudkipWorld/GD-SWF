@@ -279,28 +279,11 @@ func build_bones_recursive(player: SWFPlayer, sprite_id: int, parent_bone_idx: i
 		
 		var my_bone_idx = bones_list.size()
 		var local_pos = Vector2(ft.local_x, ft.local_y)
-
 		var tex_name = ""
 		if player.shapes.has(ft.symbol_id):
 			tex_name = "shape_%d" % ft.symbol_id
-
 			# override local pos to be the offset of this shape
-			var shape = player.shapes.get(ft.symbol_id)
-			var pos := Vector2(ft.x, ft.y)
-			var min_pt := Vector2(INF, INF)
-			var max_pt := Vector2(-INF, -INF)
-			for sp in shape.subpaths:
-				for seg in sp["segments"]:
-					for pt in [seg.Start, seg.End, seg.Control]:
-						var pt_pos = Vector2(pt["X"], pt["Y"])
-						if pt_pos != Vector2.ZERO:
-							var transformed = pos + pt_pos
-							min_pt = Vector2(min(min_pt.x, transformed.x), min(min_pt.y, transformed.y))
-							max_pt = Vector2(max(max_pt.x, transformed.x), max(max_pt.y, transformed.y))
-			local_pos = (min_pt + max_pt) * 0.5
-
-			# flip Y, since swf is -Y while skf is +Y
-			local_pos.y = -local_pos.y
+			local_pos = get_local_shape(player, ft)
 
 		var bone = {
 			"id": my_bone_idx,
@@ -363,19 +346,8 @@ func build_animations(player: SWFPlayer, root_sprite_id: int, bones_list: Array)
 				if !ft.visible:
 					continue
 				var target_bone_ids = symbol_to_bones_map.get(ft.symbol_id, [])
-				var global_pos = to_skel_pos(ft)
 				for bone_id in target_bone_ids:
-					var parent_id = bones_list[bone_id]["parent_id"]
-					var local_pos = global_pos
-					var parent_rot = 0.0
-					var parent_scale = Vector2(1, 1)
-					if parent_id >= 0:
-						local_pos -= Vector2(bones_list[parent_id]["pos"]["x"], bones_list[parent_id]["pos"]["y"])
-						parent_rot = bones_list[parent_id]["rot"]
-						parent_scale = Vector2(bones_list[parent_id]["scale"]["x"], bones_list[parent_id]["scale"]["y"])
-						local_pos = local_pos.rotated(-parent_rot)
-						local_pos.x /= max(parent_scale.x, 0.0001)
-						local_pos.y /= max(parent_scale.y, 0.0001)
+					var local_pos = Vector2(ft.x, -ft.y)
 					anim["keyframes"].append({
 						"frame": local_frame,
 						"bone_id": bone_id,
@@ -473,6 +445,23 @@ func create_texture_atlas(player: SWFPlayer) -> Dictionary:
 		"texture_map": texture_map
 	}
 
-func to_skel_pos(ft: SWFClasses.SWFFrame) -> Vector2:
-	var t = Vector2(ft.x, -ft.y)
-	return t
+
+func get_local_shape(player, ft):
+	var shape = player.shapes.get(ft.symbol_id)
+	var pos := Vector2(ft.x, ft.y)
+	var min_pt := Vector2(INF, INF)
+	var max_pt := Vector2(-INF, -INF)
+	if shape == null: return Vector2.ZERO
+	for sp in shape.subpaths:
+		for seg in sp["segments"]:
+			for pt in [seg.Start, seg.End, seg.Control]:
+				var pt_pos = Vector2(pt["X"], pt["Y"])
+				if pt_pos != Vector2.ZERO:
+					var transformed = pos + pt_pos
+					min_pt = Vector2(min(min_pt.x, transformed.x), min(min_pt.y, transformed.y))
+					max_pt = Vector2(max(max_pt.x, transformed.x), max(max_pt.y, transformed.y))
+	var local_pos = (min_pt + max_pt) * 0.5
+
+	# flip Y, since swf is -Y while skf is +Y
+	local_pos.y = -local_pos.y
+	return local_pos

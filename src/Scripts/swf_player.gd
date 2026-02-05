@@ -48,7 +48,7 @@ func advance_frames():
 		return
 	var sp_id = animated_sprite_id
 	if !sprites.has(sp_id):
-		return  
+		return
 	var root_sprite : SWFClasses.SWFSprite = sprites[sp_id]
 	var anim_keys = root_sprite.animations.keys()
 	if anim_keys.is_empty():

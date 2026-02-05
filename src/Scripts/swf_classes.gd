@@ -165,6 +165,7 @@ class SWFShape:
 			_detect_global_overlaps(all_polygons_in_shape, polygon_source_info)
 			subtract_overlapping_geometry()
 
+
 	func close_loop(poly: PackedVector2Array) -> PackedVector2Array:
 		if poly.size() < 3:
 			return poly
