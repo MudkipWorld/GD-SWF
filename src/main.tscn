@@ -1,0 +1,320 @@
+[gd_scene format=3 uid="uid://c8updkvpcscsd"]
+
+[ext_resource type="Script" uid="uid://c1aj0qxqbmtjh" path="res://Scripts/GenScript.cs" id="1_0xm2m"]
+[ext_resource type="Script" uid="uid://44uy5dky2yjy" path="res://Scripts/gen_script_gd.gd" id="2_h2yge"]
+[ext_resource type="Script" uid="uid://mjwmkl4ptaph" path="res://Scripts/gen_export.gd" id="3_1bvp3"]
+[ext_resource type="Script" uid="uid://bmbekbej0v7dx" path="res://Scripts/swf_player.gd" id="3_h2yge"]
+[ext_resource type="Texture2D" uid="uid://bek2jd32bggoq" path="res://Assets/32x32grid.png" id="4_lquwl"]
+
+[node name="Main" type="Control" unique_id=812752737]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="GenScript" type="Node" parent="." unique_id=1675208391]
+unique_name_in_owner = true
+script = ExtResource("1_0xm2m")
+
+[node name="GenScriptGD" type="Node" parent="." unique_id=1749284143]
+script = ExtResource("2_h2yge")
+
+[node name="GenExport" type="Node" parent="." unique_id=916968064]
+unique_name_in_owner = true
+script = ExtResource("3_1bvp3")
+
+[node name="TextureRect" type="TextureRect" parent="." unique_id=765963789]
+self_modulate = Color(1, 1, 1, 0.039215688)
+z_index = -999
+z_as_relative = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("4_lquwl")
+expand_mode = 1
+stretch_mode = 1
+
+[node name="VBox" type="VBoxContainer" parent="." unique_id=450979742]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 0
+
+[node name="TopPanel" type="Panel" parent="VBox" unique_id=1782735791]
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="VBox/TopPanel" unique_id=36416076]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Import" type="Button" parent="VBox/TopPanel/HBoxContainer" unique_id=1065475932]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Load SWF"
+
+[node name="SaveJson" type="Button" parent="VBox/TopPanel/HBoxContainer" unique_id=1217996471]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Export Json"
+
+[node name="SaveSVG" type="Button" parent="VBox/TopPanel/HBoxContainer" unique_id=1539174802]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Export SVG"
+
+[node name="SaveSKF" type="Button" parent="VBox/TopPanel/HBoxContainer" unique_id=2025122440]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Export SKF"
+
+[node name="SaveSKFTintMode" type="Button" parent="VBox/TopPanel/HBoxContainer" unique_id=2050781148]
+visible = false
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Export SKF Tint Mode"
+
+[node name="ZoomLabel" type="Label" parent="VBox/TopPanel" unique_id=579975642]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 6
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -100.0
+offset_top = -11.5
+offset_bottom = 11.5
+grow_horizontal = 0
+grow_vertical = 2
+text = "Zoom 100%"
+
+[node name="HBox" type="HBoxContainer" parent="VBox" unique_id=1999195460]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="LeftPanel" type="Panel" parent="VBox/HBox" unique_id=710165188]
+custom_minimum_size = Vector2(325, 0)
+layout_mode = 2
+
+[node name="Margin" type="MarginContainer" parent="VBox/HBox/LeftPanel" unique_id=782945040]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 4
+
+[node name="VBox2" type="VBoxContainer" parent="VBox/HBox/LeftPanel/Margin" unique_id=469264775]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="PanelContainer" type="PanelContainer" parent="VBox/HBox/LeftPanel/Margin/VBox2" unique_id=431036197]
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+
+[node name="Label" type="Label" parent="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer" unique_id=1549710834]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Shapes"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="PanelContainer2" type="PanelContainer" parent="VBox/HBox/LeftPanel/Margin/VBox2" unique_id=2081856034]
+custom_minimum_size = Vector2(0, 52)
+layout_mode = 2
+
+[node name="Grid" type="GridContainer" parent="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2" unique_id=1276265247]
+layout_mode = 2
+size_flags_vertical = 3
+columns = 2
+
+[node name="ReGenPoly" type="Button" parent="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid" unique_id=1638355302]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Gen Polygon"
+
+[node name="Reload" type="Button" parent="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid" unique_id=1339344520]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Reload SWF"
+
+[node name="FallbackGen" type="CheckBox" parent="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid" unique_id=1899145630]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Fallback"
+
+[node name="HoleDetection" type="CheckBox" parent="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid" unique_id=1453677194]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Holes"
+
+[node name="BakedKeyframes" type="CheckBox" parent="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid" unique_id=1775797561]
+visible = false
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+button_pressed = true
+text = "Baked Keyframes"
+
+[node name="PanelContainer3" type="PanelContainer" parent="VBox/HBox/LeftPanel/Margin/VBox2" unique_id=1923320938]
+custom_minimum_size = Vector2(0, 70)
+layout_mode = 2
+
+[node name="Grid" type="GridContainer" parent="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer3" unique_id=989414767]
+layout_mode = 2
+columns = 2
+
+[node name="Label" type="Label" parent="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer3/Grid" unique_id=2075041423]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 14
+text = "Animation:"
+vertical_alignment = 1
+
+[node name="Animations" type="OptionButton" parent="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer3/Grid" unique_id=596062913]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 14
+text_overrun_behavior = 3
+
+[node name="Label2" type="Label" parent="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer3/Grid" unique_id=608447942]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 14
+text = "FPS:"
+vertical_alignment = 1
+
+[node name="FPS" type="SpinBox" parent="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer3/Grid" unique_id=182898030]
+layout_mode = 2
+min_value = 4.0
+max_value = 120.0
+value = 24.0
+
+[node name="Tree" type="Tree" parent="VBox/HBox/LeftPanel/Margin/VBox2" unique_id=1878332162]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+allow_reselect = true
+
+[node name="Control" type="Control" parent="VBox/HBox" unique_id=1571860998]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Pivot" type="Control" parent="VBox/HBox/Control" unique_id=1116953314]
+z_index = -99
+z_as_relative = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = 104.0
+offset_right = 20.0
+offset_bottom = 144.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Player" type="Node2D" parent="VBox/HBox/Control/Pivot" unique_id=585902087]
+unique_name_in_owner = true
+script = ExtResource("3_h2yge")
+playing = true
+
+[node name="FoldableContainer" type="FoldableContainer" parent="VBox/HBox/Control" unique_id=950827499]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -24.0
+offset_bottom = 32.0
+grow_horizontal = 0
+
+[node name="Panel" type="Panel" parent="VBox/HBox/Control/FoldableContainer" unique_id=482819854]
+custom_minimum_size = Vector2(150, 150)
+layout_mode = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="VBox/HBox/Control/FoldableContainer/Panel" unique_id=1803819296]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="PanelContainer" type="PanelContainer" parent="VBox/HBox/Control/FoldableContainer/Panel/MarginContainer" unique_id=1064829893]
+layout_mode = 2
+
+[node name="Preview" type="TextureRect" parent="VBox/HBox/Control/FoldableContainer/Panel/MarginContainer/PanelContainer" unique_id=259239223]
+unique_name_in_owner = true
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="FileDialog" type="FileDialog" parent="." unique_id=62517865]
+unique_name_in_owner = true
+title = "Open a File"
+force_native = true
+file_mode = 0
+access = 2
+filters = PackedStringArray("*.swf")
+use_native_dialog = true
+
+[node name="ExportDialog" type="FileDialog" parent="." unique_id=271934325]
+unique_name_in_owner = true
+title = "Open a Directory"
+force_native = true
+file_mode = 2
+access = 2
+use_native_dialog = true
+
+[connection signal="pressed" from="VBox/TopPanel/HBoxContainer/Import" to="GenScriptGD" method="_on_import_pressed"]
+[connection signal="pressed" from="VBox/TopPanel/HBoxContainer/SaveJson" to="GenScriptGD" method="_on_save_json_pressed"]
+[connection signal="pressed" from="VBox/TopPanel/HBoxContainer/SaveSVG" to="GenScriptGD" method="_on_save_svg_pressed"]
+[connection signal="pressed" from="VBox/TopPanel/HBoxContainer/SaveSKF" to="GenScriptGD" method="_on_save_skf_pressed"]
+[connection signal="pressed" from="VBox/TopPanel/HBoxContainer/SaveSKFTintMode" to="GenScriptGD" method="_on_save_svg_pressed"]
+[connection signal="pressed" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid/ReGenPoly" to="GenScriptGD" method="_on_re_gen_poly_pressed"]
+[connection signal="pressed" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid/Reload" to="GenScriptGD" method="_on_reload_pressed"]
+[connection signal="toggled" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid/FallbackGen" to="GenExport" method="_on_fallback_gen_toggled"]
+[connection signal="toggled" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid/HoleDetection" to="GenExport" method="_on_hole_detection_toggled"]
+[connection signal="toggled" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid/BakedKeyframes" to="GenScriptGD" method="_on_baked_keyframes_toggled"]
+[connection signal="item_selected" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer3/Grid/Animations" to="GenScriptGD" method="_on_animations_item_selected"]
+[connection signal="value_changed" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer3/Grid/FPS" to="GenScriptGD" method="_on_fps_value_changed"]
+[connection signal="item_selected" from="VBox/HBox/LeftPanel/Margin/VBox2/Tree" to="GenScriptGD" method="_on_tree_item_selected"]
+[connection signal="mouse_entered" from="VBox/HBox/Control" to="GenScriptGD" method="_on_control_mouse_entered"]
+[connection signal="mouse_exited" from="VBox/HBox/Control" to="GenScriptGD" method="_on_control_mouse_exited"]
+[connection signal="file_selected" from="FileDialog" to="GenScriptGD" method="_on_file_dialog_file_selected"]
+[connection signal="dir_selected" from="ExportDialog" to="GenScriptGD" method="_on_export_dialog_dir_selected"]
