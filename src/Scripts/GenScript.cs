@@ -536,18 +536,18 @@ public partial class GenScript : Node
         var shapeData = new ShapeData();
 
         float x = 0, y = 0;
-        int? fill0 = null;
-        int? fill1 = null;
-
+        int? fill0 = null, fill1 = null;
         int styleTableId = 0;
+
         var fillStyleTables = new Dictionary<int, dynamic>();
         fillStyleTables[styleTableId] = shapeTag.FillStyles;
 
         var fillEdges = new Dictionary<(int tableId, int fillIndex), List<Edge>>();
 
-        void AddEdge(int tableId, int fillIndex, Edge e)
+        void AddEdge(int table, int? fill, Edge e)
         {
-            var key = (tableId, fillIndex);
+            if (!fill.HasValue) return;
+            var key = (table, fill.Value);
             if (!fillEdges.TryGetValue(key, out var list))
                 fillEdges[key] = list = new List<Edge>();
             list.Add(e);
@@ -558,26 +558,15 @@ public partial class GenScript : Node
             switch (record)
             {
                 case SwfLib.Shapes.Records.StyleChangeShapeRecord sc:
-                {
                     if (sc.StateNewStyles)
                     {
                         styleTableId++;
-
                         try
                         {
-                            var styles = ((dynamic)sc).FillStyles;
-                            if (styles != null)
-                                fillStyleTables[styleTableId] = styles;
-                            else
-                                fillStyleTables[styleTableId] = fillStyleTables[styleTableId - 1];
+                            fillStyleTables[styleTableId] = ((dynamic)sc).FillStyles ?? fillStyleTables[styleTableId - 1];
                         }
-                        catch
-                        {
-                            fillStyleTables[styleTableId] = fillStyleTables[styleTableId - 1];
-                        }
-
-                        fill0 = null;
-                        fill1 = null;
+                        catch { fillStyleTables[styleTableId] = fillStyleTables[styleTableId - 1]; }
+                        fill0 = fill1 = null;
                     }
 
                     if (sc.StateMoveTo)
@@ -585,95 +574,44 @@ public partial class GenScript : Node
                         x = sc.MoveDeltaX * TWIPS_TO_PIXELS;
                         y = sc.MoveDeltaY * TWIPS_TO_PIXELS;
                     }
-
-                    if (sc.FillStyle0.HasValue)
-                        fill0 = sc.FillStyle0.Value > 0
-                            ? (int)sc.FillStyle0.Value - 1
-                            : (int?)null;
-
-                    if (sc.FillStyle1.HasValue)
-                        fill1 = sc.FillStyle1.Value > 0
-                            ? (int)sc.FillStyle1.Value - 1
-                            : (int?)null;
-
+                    if (sc.FillStyle0.HasValue) fill0 = sc.FillStyle0 > 0 ? (int)sc.FillStyle0 - 1 : null;
+                    if (sc.FillStyle1.HasValue) fill1 = sc.FillStyle1 > 0 ? (int)sc.FillStyle1 - 1 : null;
                     break;
-                }
 
                 case SwfLib.Shapes.Records.StraightEdgeShapeRecord s:
-                {
                     var start = new Vector2(x, y);
-                    var end = new Vector2(
-                        x + s.DeltaX * TWIPS_TO_PIXELS,
-                        y + s.DeltaY * TWIPS_TO_PIXELS
-                    );
-
-                    if (fill1.HasValue)
-                        AddEdge(styleTableId, fill1.Value,
-                            new Edge { Start = start, End = end });
-
-                    if (fill0.HasValue)
-                        AddEdge(styleTableId, fill0.Value,
-                            new Edge { Start = end, End = start });
-
-                    x = end.X;
-                    y = end.Y;
+                    var end = new Vector2(x + s.DeltaX * TWIPS_TO_PIXELS, y + s.DeltaY * TWIPS_TO_PIXELS);
+                    AddEdge(styleTableId, fill1, new Edge { Start = start, End = end });
+                    AddEdge(styleTableId, fill0, new Edge { Start = end, End = start });
+                    x = end.X; y = end.Y;
                     break;
-                }
 
                 case SwfLib.Shapes.Records.CurvedEdgeShapeRecord c:
-                {
-                    var start = new Vector2(x, y);
-                    var control = new Vector2(
-                        x + c.ControlDeltaX * TWIPS_TO_PIXELS,
-                        y + c.ControlDeltaY * TWIPS_TO_PIXELS
-                    );
-                    var end = new Vector2(
-                        control.X + c.AnchorDeltaX * TWIPS_TO_PIXELS,
-                        control.Y + c.AnchorDeltaY * TWIPS_TO_PIXELS
-                    );
-
-                    if (fill1.HasValue)
-                        AddEdge(styleTableId, fill1.Value,
-                            new Edge { Start = start, Control = control, End = end });
-
-                    if (fill0.HasValue)
-                        AddEdge(styleTableId, fill0.Value,
-                            new Edge { Start = end, Control = control, End = start });
-
-                    x = end.X;
-                    y = end.Y;
+                    start = new Vector2(x, y);
+                    var ctrl = new Vector2(x + c.ControlDeltaX * TWIPS_TO_PIXELS, y + c.ControlDeltaY * TWIPS_TO_PIXELS);
+                    end = new Vector2(ctrl.X + c.AnchorDeltaX * TWIPS_TO_PIXELS, ctrl.Y + c.AnchorDeltaY * TWIPS_TO_PIXELS);
+                    AddEdge(styleTableId, fill1, new Edge { Start = start, Control = ctrl, End = end });
+                    AddEdge(styleTableId, fill0, new Edge { Start = end, Control = ctrl, End = start });
+                    x = end.X; y = end.Y;
                     break;
-                }
             }
         }
 
         foreach (var kvp in fillEdges)
         {
             var (tableId, fillIndex) = kvp.Key;
-            var styles = fillStyleTables[tableId];
+            var fillStyles = fillStyleTables[tableId];
+            if (fillStyles == null || fillIndex < 0 || fillIndex >= fillStyles.Count) continue;
 
-            if (styles == null || fillIndex < 0 || fillIndex >= styles.Count)
-                continue;
+            var fillStyle = fillStyles[fillIndex];
+            var color = GetGradientStartColor(fillStyle) ?? new Color(1, 1, 1, 1);
 
-            if (styles[fillIndex] is not SwfLib.Shapes.FillStyles.SolidFillStyleRGB rgb)
-                continue;
-
-            var color = new Color(
-                rgb.Color.Red / 255f,
-                rgb.Color.Green / 255f,
-                rgb.Color.Blue / 255f,
-                1f
-            );
-
-            var loops = BuildLoops(kvp.Value);
-
-            foreach (var loop in loops)
+            foreach (var loop in BuildLoops(kvp.Value))
             {
                 var sub = new SubPath { FillColor = color };
                 shapeData.SubPaths.Add(sub);
 
                 bool first = true;
-
                 foreach (var e in loop)
                 {
                     if (first)
@@ -698,6 +636,7 @@ public partial class GenScript : Node
                     });
                 }
 
+                // Close the loop
                 sub.Segments.Add(new PathSegment
                 {
                     Type = "line",
@@ -711,7 +650,6 @@ public partial class GenScript : Node
         return shapeData;
     }
 
-
     private List<List<Edge>> BuildLoops(List<Edge> edges)
     {
         var unused = new List<Edge>(edges);
@@ -724,9 +662,9 @@ public partial class GenScript : Node
             loop.Add(e);
             var current = e.End;
 
-            while (Distance(current, loop[0].Start) > 0.001f)
+            while ((current - loop[0].Start).Length() > 0.001f)
             {
-                int idx = unused.FindIndex(x => Distance(x.Start, current) < 0.001f);
+                int idx = unused.FindIndex(x => (x.Start - current).Length() < 0.001f);
                 if (idx == -1) break;
                 e = unused[idx]; unused.RemoveAt(idx);
                 loop.Add(e);
@@ -739,35 +677,71 @@ public partial class GenScript : Node
         return loops;
     }
 
-    public string ShapeToSvg(ShapeData shape)
+public string ShapeToSvg(ShapeData shape)
+{
+    if (shape.SubPaths.Count == 0) return "";
+
+    var sb = new StringBuilder();
+    var defs = new StringBuilder();
+    int gradientCounter = 0;
+
+    sb.AppendLine(@"<?xml version=""1.0"" encoding=""UTF-8"" standalone=""no""?>");
+    sb.AppendLine("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">");
+
+    foreach (var sub in shape.SubPaths)
     {
-        if (shape.SubPaths.Count == 0) return "";
-        var sb = new StringBuilder();
-        sb.AppendLine(@"<?xml version=""1.0"" encoding=""UTF-8"" standalone=""no""?>");
-        sb.AppendLine("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">");
+        var pathSb = new StringBuilder();
 
-        foreach (var sub in shape.SubPaths)
+        foreach (var seg in sub.Segments)
         {
-            if (sub.Segments.Count == 0) continue;
-            var pathSb = new StringBuilder();
-
-            foreach (var seg in sub.Segments)
+            switch (seg.Type)
             {
-                switch (seg.Type)
-                {
-                    case "move": pathSb.AppendFormat("M{0} {1} ", seg.Start.X, seg.Start.Y); break;
-                    case "line": pathSb.AppendFormat("L{0} {1} ", seg.End.X, seg.End.Y); break;
-                    case "curve": pathSb.AppendFormat("Q{0} {1} {2} {3} ", seg.Control.X, seg.Control.Y, seg.End.X, seg.End.Y); break;
-                }
+                case "move": pathSb.AppendFormat("M{0} {1} ", seg.Start.X, seg.Start.Y); break;
+                case "line": pathSb.AppendFormat("L{0} {1} ", seg.End.X, seg.End.Y); break;
+                case "curve": pathSb.AppendFormat("Q{0} {1} {2} {3} ", seg.Control.X, seg.Control.Y, seg.End.X, seg.End.Y); break;
             }
-
-            string hex = $"{(int)(sub.FillColor.R*255):X2}{(int)(sub.FillColor.G*255):X2}{(int)(sub.FillColor.B*255):X2}";
-            sb.AppendFormat("<path d=\"{0}\" fill=\"#{1}\" fill-opacity=\"{2:F6}\" stroke=\"none\" fill-rule=\"nonzero\"/>\n", pathSb.ToString().TrimEnd(), hex, sub.FillColor.A);
         }
 
-        sb.Append("</svg>");
-        return sb.ToString();
+        string fillAttr;
+        float alpha = sub.FillColor.A;
+
+        if (sub.Gradient != null && sub.Gradient.Stops.Count > 0)
+        {
+            if (sub.GradientId < 0)
+                sub.GradientId = gradientCounter++;
+
+            string gradName = $"grad{sub.GradientId}";
+            fillAttr = $"url(#{gradName})";
+
+            defs.AppendLine($"<linearGradient id=\"{gradName}\" x1=\"{sub.Gradient.X1}\" y1=\"{sub.Gradient.Y1}\" x2=\"{sub.Gradient.X2}\" y2=\"{sub.Gradient.Y2}\" gradientUnits=\"userSpaceOnUse\">");
+            foreach (var stop in sub.Gradient.Stops)
+            {
+                string stopColor = $"{(int)(stop.Color.R * 255):X2}{(int)(stop.Color.G * 255):X2}{(int)(stop.Color.B * 255):X2}";
+                defs.AppendLine($"<stop offset=\"{stop.Offset:F6}\" stop-color=\"#{stopColor}\" stop-opacity=\"{stop.Color.A:F6}\" />");
+            }
+            defs.AppendLine("</linearGradient>");
+        }
+        else
+        {
+            string hex = $"{(int)(sub.FillColor.R * 255):X2}{(int)(sub.FillColor.G * 255):X2}{(int)(sub.FillColor.B * 255):X2}";
+            fillAttr = "#" + hex;
+        }
+
+        sb.AppendFormat(
+            "<path d=\"{0}\" fill=\"{1}\" fill-opacity=\"{2:F6}\" stroke=\"none\" fill-rule=\"nonzero\"/>\n",
+            pathSb.ToString().TrimEnd(),
+            fillAttr,
+            alpha
+        );
     }
+
+    // insert gradient definitions
+    if (defs.Length > 0)
+        sb.Insert(sb.ToString().IndexOf("<svg") + 5, "<defs>" + defs.ToString() + "</defs>\n");
+
+    sb.AppendLine("</svg>");
+    return sb.ToString();
+}
 
     private static float Distance(Vector2 a, Vector2 b)
     {
@@ -803,12 +777,59 @@ public partial class GenScript : Node
     }
 
 
+    Color GetGradientStartColor(dynamic fillStyle)
+    {
+        switch (fillStyle)
+        {
+            case SwfLib.Shapes.FillStyles.LinearGradientFillStyleRGB linear:
+                var first = linear.Gradient.GradientRecords[0];
+                return new Color(first.Color.Red / 255f, first.Color.Green / 255f, first.Color.Blue / 255f, 1.0f);
+
+            case SwfLib.Shapes.FillStyles.RadialGradientFillStyleRGB radial:
+                var firstR = radial.Gradient.GradientRecords[0];
+                return new Color(firstR.Color.Red / 255f, firstR.Color.Green / 255f, firstR.Color.Blue / 255f, 1.0f);
+
+            case SwfLib.Shapes.FillStyles.LinearGradientFillStyleRGBA linearR:
+                var firstLR = linearR.Gradient.GradientRecords[0];
+                return new Color(firstLR.Color.Red / 255f, firstLR.Color.Green / 255f, firstLR.Color.Blue / 255f, firstLR.Color.Alpha / 255f);
+
+            case SwfLib.Shapes.FillStyles.RadialGradientFillStyleRGBA radialR:
+                var firstRR = radialR.Gradient.GradientRecords[0];
+                return new Color(firstRR.Color.Red / 255f, firstRR.Color.Green / 255f, firstRR.Color.Blue / 255f, firstRR.Color.Alpha / 255f);
+
+            case SwfLib.Shapes.FillStyles.SolidFillStyleRGB rgb:
+                return new Color(rgb.Color.Red / 255f, rgb.Color.Green / 255f, rgb.Color.Blue / 255f, 1f);
+
+            case SwfLib.Shapes.FillStyles.SolidFillStyleRGBA rgba:
+                return new Color(rgba.Color.Red / 255f, rgba.Color.Green / 255f, rgba.Color.Blue / 255f, rgba.Color.Alpha / 255f);
+
+            default:
+                return new Color(1, 1, 1, 1);
+        }
+    }
+
+
+
 
     public class ExportDocument { public Dictionary<int, ShapeData> Shapes = new(); public Dictionary<int, SpriteExportData> Sprites = new(); }
     public class SpriteExportData { public List<ChildInfo> Children = new(); public List<Dictionary<int, FrameTag>> Frames = new(); public List<string> FrameNames = new(); public float LocalX, LocalY;  public int MaxNestingDepth = 0; }
     public class ChildInfo { public int ID; public string Type = "Shape"; }
     public class ShapeData { public List<SubPath> SubPaths = new(); public string Svg = ""; }
-    public class SubPath { public Color FillColor = new(1, 1, 1, 1); public List<PathSegment> Segments = new(); public Vector2 LastPoint; }
+    public class SubPath { public Color FillColor = new(1, 1, 1, 1); public List<PathSegment> Segments = new(); public Vector2 LastPoint;     public GradientInfo Gradient = null;  public int GradientId = -1;}
+
+
+    public class GradientInfo
+    {
+        public float X1, Y1, X2, Y2;
+        public List<GradientStop> Stops;
+    }
+
+    public class GradientStop
+    {
+        public Color Color;
+        public float Offset; // 0 to 1
+    }
+
     public class PathSegment { public string Type = "line"; public Vector2 Start, Control, End; public Color Color = new(1, 1, 1, 1); }
     public class FrameTag {
         public int SymbolID, Depth;

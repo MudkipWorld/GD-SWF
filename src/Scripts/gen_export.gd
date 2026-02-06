@@ -150,7 +150,7 @@ func parse_json(data: Dictionary, player : SWFPlayer, bake : bool = true) -> Arr
 		for id in data["Shapes"].keys():
 			var shape = SWFClasses.SWFShape.new(data["Shapes"][id])
 			shape.build_geometry(use_fallback, smooth_iteration, hollow_pieces)
-			shape._generate_svg()
+			
 			var image = Image.new()
 			if !shape.to_svg().is_empty():
 				image.load_svg_from_string(shape.to_svg())

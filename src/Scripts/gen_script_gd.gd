@@ -18,6 +18,8 @@ var current_export_type : ExportType = ExportType.Normal
 var zoom_trigger : bool = false
 var dragging : bool = false
 
+var selected_shape : SWFClasses.SWFShape = null
+
 func _on_import_pressed() -> void:
 	%FileDialog.popup()
 
@@ -45,7 +47,13 @@ func populate_option_button():
 		%Animations.add_item(i)
 
 func _on_re_gen_poly_pressed() -> void:
-	%GenExport.regen_shapes(player)
+	if selected_shape != null && is_instance_valid(selected_shape):
+		selected_shape.build_geometry(%FallbackGen.button_pressed, 5, %HoleDetection.button_pressed)
+		var item : TreeItem = tree.get_selected()
+		if item == null or !is_instance_valid(item): return
+		if item.get_metadata(0) == null: return
+		item.set_icon(0,selected_shape.texture)
+		%Preview.texture = item.get_metadata(0).texture
 
 func _on_reload_pressed() -> void:
 	if last_path.is_empty(): return
@@ -60,6 +68,8 @@ func load_path(path : String = ""):
 	if loaded_data.is_empty(): return
 	last_path = path
 	loaded_swf_name = path.get_basename().get_file()
+	player.current_animation = 0
+	player.current_frame = 0
 	var shapes : Array = %GenExport.parse_json(loaded_data, player, baked_data)
 	populate_tree(shapes)
 	populate_option_button()
@@ -75,12 +85,17 @@ func _on_fps_value_changed(value: float) -> void:
 
 func _on_tree_item_selected() -> void:
 	var item : TreeItem = tree.get_selected()
-	if item == null or !is_instance_valid(item): return
+	
+	if item == null or !is_instance_valid(item): 
+		selected_shape = null
+		return
 	if item.get_metadata(0) == null: return
+	selected_shape = item.get_metadata(0)
 	if item.get_metadata(0) is SWFClasses.SWFShape:
 		%Preview.texture = item.get_metadata(0).texture
 	else:
 		%Preview.texture = null
+	
 
 func _on_baked_keyframes_toggled(toggled_on: bool) -> void:
 	baked_data = toggled_on
