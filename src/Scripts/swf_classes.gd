@@ -21,6 +21,7 @@ class SWFFrame:
 	var is_dirty : bool = true 
 	var local_x: float = 0.0
 	var local_y: float = 0.0
+	var alpha : float = 1.0
 	func _init(data : Dictionary):
 		symbol_id = data.get("SymbolID", 0)
 		depth = data.get("Depth", 0)
@@ -28,6 +29,7 @@ class SWFFrame:
 		y = data.get("Y", 0.0)
 		scale_x = data.get("ScaleX", 1.0)
 		scale_y = data.get("ScaleY", 1.0)
+		alpha = data.get("Alpha", 1.0)
 		rotation = data.get("Rotation", 0.0)
 		
 		local_x = data.get("LocalX", 0)
@@ -36,7 +38,6 @@ class SWFFrame:
 		is_dirty = true
 		if data.has("TransformMatrix"):
 			transform_matrix = data["TransformMatrix"]
-
 
 class SWFShape:
 	var subpaths: Array = []

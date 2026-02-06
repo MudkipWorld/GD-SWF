@@ -307,157 +307,149 @@ public partial class GenScript : Node
         GD.Print("Export complete!");
     }
 
-private SpriteExportData ProcessTimeline(IEnumerable<SwfTagBase> tags, bool bakeFrames = true)
-{
-    var displayList = new Dictionary<int, FrameTag>();
-    var frames = new List<Dictionary<int, FrameTag>>();
-    var children = new Dictionary<int, string>();
-    var frameNames = new List<string>();
-    string pendingLabel = null;
-
-    var labelCounts = new Dictionary<string, int>();
-    var removedDepths = new HashSet<int>();
-
-    FrameTag CloneFrameTag(FrameTag source)
+    private SpriteExportData ProcessTimeline(IEnumerable<SwfTagBase> tags, bool bakeFrames = true)
     {
-        if (source == null) return null;
-        return new FrameTag
-        {
-            SymbolID = source.SymbolID,
-            Depth = source.Depth,
-            X = source.X,
-            Y = source.Y,
-            ScaleX = source.ScaleX,
-            ScaleY = source.ScaleY,
-            Rotation = source.Rotation,
-            TransformMatrix = source.TransformMatrix != null ? (float[])source.TransformMatrix.Clone() : null,
-            Visible = source.Visible,
-            IsDirty = source.IsDirty
-        };
-    }
+        var displayList = new Dictionary<int, FrameTag>();
+        var frames = new List<Dictionary<int, FrameTag>>();
+        var children = new Dictionary<int, string>();
+        var frameNames = new List<string>();
+        string pendingLabel = null;
 
-    Dictionary<int, FrameTag> lastFrame = null;
+        var labelCounts = new Dictionary<string, int>();
+        var removedDepths = new HashSet<int>();
 
-    float localX = 0f;
-    float localY = 0f;
-    var spriteTag = tags.OfType<DefineSpriteTag>().FirstOrDefault();
-    if (spriteTag != null)
-    {
-        var locals = GetSpriteLocalPositions(spriteTag);
-        if (locals.Count > 0)
+        FrameTag CloneFrameTag(FrameTag source)
         {
-            var first = locals.First().Value;
-            localX = first.X;
-            localY = first.Y;
+            if (source == null) return null;
+            return new FrameTag
+            {
+                SymbolID = source.SymbolID,
+                Depth = source.Depth,
+                X = source.X,
+                Y = source.Y,
+                ScaleX = source.ScaleX,
+                ScaleY = source.ScaleY,
+                Rotation = source.Rotation,
+                TransformMatrix = source.TransformMatrix != null ? (float[])source.TransformMatrix.Clone() : null,
+                Visible = source.Visible,
+                IsDirty = source.IsDirty
+            };
         }
-    }
 
-    foreach (var tag in tags)
-    {
-        switch (tag)
+        Dictionary<int, FrameTag> lastFrame = null;
+
+        float localX = 0f;
+        float localY = 0f;
+        var spriteTag = tags.OfType<DefineSpriteTag>().FirstOrDefault();
+        if (spriteTag != null)
         {
-            case FrameLabelTag labelTag:
-                string name = labelTag.Name;
-                if (!string.IsNullOrEmpty(name))
-                {
-                    if (labelCounts.ContainsKey(name))
-                    {
-                        labelCounts[name]++;
-                        name += labelCounts[name];
-                    }
-                    else
-                    {
-                        labelCounts[name] = 1;
-                    }
+            var locals = GetSpriteLocalPositions(spriteTag);
+            if (locals.Count > 0)
+            {
+                var first = locals.First().Value;
+                localX = first.X;
+                localY = first.Y;
+            }
+        }
 
-                    pendingLabel = string.IsNullOrEmpty(pendingLabel) ? name : pendingLabel + ", " + name;
-                }
-                break;
-
-            case ShowFrameTag:
-                var frameDict = new Dictionary<int, FrameTag>();
-                bool isAnimationStart = !bakeFrames && !string.IsNullOrEmpty(pendingLabel);
-
-                foreach (var kvp in displayList)
-                {
-                    var f = kvp.Value;
-                    if (bakeFrames || f.IsDirty || isAnimationStart)
+        foreach (var tag in tags)
+        {
+            switch (tag)
+            {
+                case FrameLabelTag labelTag:
+                    string name = labelTag.Name;
+                    if (!string.IsNullOrEmpty(name))
                     {
-                        var clone = CloneFrameTag(f);
-                        if (!bakeFrames) clone.IsDirty = false;
-                        frameDict[kvp.Key] = clone;
-                    }
-                }
-
-                if (!bakeFrames && lastFrame != null)
-                {
-                    foreach (var kvp in lastFrame)
-                    {
-                        int depth = kvp.Key;
-                        if (removedDepths.Contains(depth)) continue;
-                        if (!frameDict.ContainsKey(depth))
+                        if (labelCounts.ContainsKey(name))
                         {
-                            var carryover = CloneFrameTag(kvp.Value);
-                            carryover.IsDirty = false;
-                            frameDict[depth] = carryover;
+                            labelCounts[name]++;
+                            name += labelCounts[name];
+                        }
+                        else
+                        {
+                            labelCounts[name] = 1;
+                        }
+
+                        pendingLabel = string.IsNullOrEmpty(pendingLabel) ? name : pendingLabel + ", " + name;
+                    }
+                    break;
+
+                case ShowFrameTag:
+                    var frameDict = new Dictionary<int, FrameTag>();
+                    bool isAnimationStart = !bakeFrames && !string.IsNullOrEmpty(pendingLabel);
+
+                    foreach (var kvp in displayList)
+                    {
+                        var f = kvp.Value;
+                        if (bakeFrames || f.IsDirty || isAnimationStart)
+                        {
+                            var clone = CloneFrameTag(f);
+                            if (!bakeFrames) clone.IsDirty = false;
+                            frameDict[kvp.Key] = clone;
                         }
                     }
-                }
 
-                frames.Add(frameDict);
-                frameNames.Add(pendingLabel);
-                pendingLabel = null;
-                removedDepths.Clear();
+                    if (!bakeFrames && lastFrame != null)
+                    {
+                        foreach (var kvp in lastFrame)
+                        {
+                            int depth = kvp.Key;
+                            if (removedDepths.Contains(depth)) continue;
+                            if (!frameDict.ContainsKey(depth))
+                            {
+                                var carryover = CloneFrameTag(kvp.Value);
+                                carryover.IsDirty = false;
+                                frameDict[depth] = carryover;
+                            }
+                        }
+                    }
 
-                lastFrame = frameDict
-                    .Where(kvp => kvp.Value.Visible)
-                    .ToDictionary(k => k.Key, k => CloneFrameTag(k.Value));
-                break;
+                    frames.Add(frameDict);
+                    frameNames.Add(pendingLabel);
+                    pendingLabel = null;
+                    removedDepths.Clear();
 
-            case PlaceObjectTag p1:
-                UpdateDisplayObject(displayList, children, p1.CharacterID, p1.Depth, p1.Matrix, true, true);
-                break;
+                    lastFrame = frameDict
+                        .Where(kvp => kvp.Value.Visible)
+                        .ToDictionary(k => k.Key, k => CloneFrameTag(k.Value));
+                    break;
 
-            case PlaceObject2Tag p2:
-                if (!displayList.ContainsKey(p2.Depth) && !p2.HasCharacter) break;
+                case PlaceObjectTag p1:
+                    UpdateDisplayObject(displayList, children, p1.CharacterID, p1.Depth, p1.Matrix, true, true);
+                    break;
 
-                int characterId = p2.HasCharacter ? p2.CharacterID : displayList[p2.Depth].SymbolID;
-                bool isNew = !displayList.ContainsKey(p2.Depth);
-                UpdateDisplayObject(displayList, children, characterId, p2.Depth, p2.Matrix, isNew, p2.HasMatrix);
-                break;
+                case PlaceObject2Tag p2:
+                    if (!displayList.ContainsKey(p2.Depth) && !p2.HasCharacter) break;
 
-            case RemoveObject2Tag r:
-                removedDepths.Add(r.Depth);
-                if (displayList.ContainsKey(r.Depth))
-                    displayList.Remove(r.Depth);
-                break;
+                    int characterId = p2.HasCharacter ? p2.CharacterID : displayList[p2.Depth].SymbolID;
+                    bool isNew = !displayList.ContainsKey(p2.Depth);
+                    UpdateDisplayObject(displayList, children, characterId, p2.Depth, p2.Matrix, isNew, p2.HasMatrix);
+                    break;
+
+                case RemoveObject2Tag r:
+                    removedDepths.Add(r.Depth);
+                    if (displayList.ContainsKey(r.Depth))
+                        displayList.Remove(r.Depth);
+                    break;
+            }
         }
+        
+        var spriteData = new SpriteExportData
+        {
+            Children = children.Select(kvp => new ChildInfo { ID = kvp.Key, Type = kvp.Value }).ToList(),
+            Frames = frames,
+            FrameNames = frameNames,
+            LocalX = localX,
+            LocalY = localY
+        };
+
+        spriteData.MaxNestingDepth = ComputeSpriteDepth(spriteTag?.SpriteID ?? 0);
+
+        return spriteData;
+
     }
-    
-    var spriteData = new SpriteExportData
-    {
-        Children = children.Select(kvp => new ChildInfo { ID = kvp.Key, Type = kvp.Value }).ToList(),
-        Frames = frames,
-        FrameNames = frameNames,
-        LocalX = localX,
-        LocalY = localY
-    };
 
-    spriteData.MaxNestingDepth = ComputeSpriteDepth(spriteTag?.SpriteID ?? 0);
-
-    return spriteData;
-
-}
-
-
-    private void UpdateDisplayObject(
-        Dictionary<int, FrameTag> displayList,
-        Dictionary<int, string> children,
-        int characterId,
-        int depth,
-        SwfMatrix matrix,
-        bool hasCharacter,
-        bool hasMatrix)
+    private void UpdateDisplayObject( Dictionary<int, FrameTag> displayList, Dictionary<int, string> children, int characterId, int depth, SwfMatrix matrix,bool hasCharacter, bool hasMatrix)
     {
         displayList.TryGetValue(depth, out var prev);
 
@@ -526,8 +518,6 @@ private SpriteExportData ProcessTimeline(IEnumerable<SwfTagBase> tags, bool bake
         if (!children.ContainsKey(characterId))
             children[characterId] = shapeDict.ContainsKey(characterId) ? "Shape" : "Sprite";
     }
-
-
     private bool MatrixEquals(float[] a, float[] b)
     {
         if (a == null || b == null) return false;
@@ -541,7 +531,6 @@ private SpriteExportData ProcessTimeline(IEnumerable<SwfTagBase> tags, bool bake
         return true;
     }
 
-
     private ShapeData ConvertShapeToSubPaths(dynamic shapeTag)
     {
         var shapeData = new ShapeData();
@@ -549,12 +538,18 @@ private SpriteExportData ProcessTimeline(IEnumerable<SwfTagBase> tags, bool bake
         float x = 0, y = 0;
         int? fill0 = null;
         int? fill1 = null;
-        Dictionary<int, List<Edge>> fillEdges = new();
 
-        void AddEdge(int fillIndex, Edge e)
+        int styleTableId = 0;
+        var fillStyleTables = new Dictionary<int, dynamic>();
+        fillStyleTables[styleTableId] = shapeTag.FillStyles;
+
+        var fillEdges = new Dictionary<(int tableId, int fillIndex), List<Edge>>();
+
+        void AddEdge(int tableId, int fillIndex, Edge e)
         {
-            if (!fillEdges.TryGetValue(fillIndex, out var list))
-                fillEdges[fillIndex] = list = new List<Edge>();
+            var key = (tableId, fillIndex);
+            if (!fillEdges.TryGetValue(key, out var list))
+                fillEdges[key] = list = new List<Edge>();
             list.Add(e);
         }
 
@@ -563,6 +558,27 @@ private SpriteExportData ProcessTimeline(IEnumerable<SwfTagBase> tags, bool bake
             switch (record)
             {
                 case SwfLib.Shapes.Records.StyleChangeShapeRecord sc:
+                {
+                    if (sc.StateNewStyles)
+                    {
+                        styleTableId++;
+
+                        try
+                        {
+                            var styles = ((dynamic)sc).FillStyles;
+                            if (styles != null)
+                                fillStyleTables[styleTableId] = styles;
+                            else
+                                fillStyleTables[styleTableId] = fillStyleTables[styleTableId - 1];
+                        }
+                        catch
+                        {
+                            fillStyleTables[styleTableId] = fillStyleTables[styleTableId - 1];
+                        }
+
+                        fill0 = null;
+                        fill1 = null;
+                    }
 
                     if (sc.StateMoveTo)
                     {
@@ -571,47 +587,83 @@ private SpriteExportData ProcessTimeline(IEnumerable<SwfTagBase> tags, bool bake
                     }
 
                     if (sc.FillStyle0.HasValue)
-                        fill0 = sc.FillStyle0.Value > 0 ? (int)sc.FillStyle0.Value - 1 : (int?)null;
+                        fill0 = sc.FillStyle0.Value > 0
+                            ? (int)sc.FillStyle0.Value - 1
+                            : (int?)null;
 
                     if (sc.FillStyle1.HasValue)
-                        fill1 = sc.FillStyle1.Value > 0 ? (int)sc.FillStyle1.Value - 1 : (int?)null;
+                        fill1 = sc.FillStyle1.Value > 0
+                            ? (int)sc.FillStyle1.Value - 1
+                            : (int?)null;
 
                     break;
+                }
 
                 case SwfLib.Shapes.Records.StraightEdgeShapeRecord s:
+                {
                     var start = new Vector2(x, y);
-                    var end = new Vector2(x + s.DeltaX * TWIPS_TO_PIXELS, y + s.DeltaY * TWIPS_TO_PIXELS);
+                    var end = new Vector2(
+                        x + s.DeltaX * TWIPS_TO_PIXELS,
+                        y + s.DeltaY * TWIPS_TO_PIXELS
+                    );
 
-                    if (fill1.HasValue) AddEdge(fill1.Value, new Edge { Start = start, End = end });
-                    if (fill0.HasValue) AddEdge(fill0.Value, new Edge { Start = end, End = start });
+                    if (fill1.HasValue)
+                        AddEdge(styleTableId, fill1.Value,
+                            new Edge { Start = start, End = end });
 
-                    x = end.X; y = end.Y;
+                    if (fill0.HasValue)
+                        AddEdge(styleTableId, fill0.Value,
+                            new Edge { Start = end, End = start });
+
+                    x = end.X;
+                    y = end.Y;
                     break;
+                }
 
                 case SwfLib.Shapes.Records.CurvedEdgeShapeRecord c:
-                    start = new Vector2(x, y);
-                    var control = new Vector2(x + c.ControlDeltaX * TWIPS_TO_PIXELS, y + c.ControlDeltaY * TWIPS_TO_PIXELS);
-                    end = new Vector2(control.X + c.AnchorDeltaX * TWIPS_TO_PIXELS, control.Y + c.AnchorDeltaY * TWIPS_TO_PIXELS);
+                {
+                    var start = new Vector2(x, y);
+                    var control = new Vector2(
+                        x + c.ControlDeltaX * TWIPS_TO_PIXELS,
+                        y + c.ControlDeltaY * TWIPS_TO_PIXELS
+                    );
+                    var end = new Vector2(
+                        control.X + c.AnchorDeltaX * TWIPS_TO_PIXELS,
+                        control.Y + c.AnchorDeltaY * TWIPS_TO_PIXELS
+                    );
 
-                    if (fill1.HasValue) AddEdge(fill1.Value, new Edge { Start = start, Control = control, End = end });
-                    if (fill0.HasValue) AddEdge(fill0.Value, new Edge { Start = end, Control = control, End = start });
+                    if (fill1.HasValue)
+                        AddEdge(styleTableId, fill1.Value,
+                            new Edge { Start = start, Control = control, End = end });
 
-                    x = end.X; y = end.Y;
+                    if (fill0.HasValue)
+                        AddEdge(styleTableId, fill0.Value,
+                            new Edge { Start = end, Control = control, End = start });
+
+                    x = end.X;
+                    y = end.Y;
                     break;
+                }
             }
         }
 
         foreach (var kvp in fillEdges)
         {
-            int fillIndex = kvp.Key;
+            var (tableId, fillIndex) = kvp.Key;
+            var styles = fillStyleTables[tableId];
 
-            if (shapeTag.FillStyles == null || fillIndex < 0 || fillIndex >= shapeTag.FillStyles.Count)
+            if (styles == null || fillIndex < 0 || fillIndex >= styles.Count)
                 continue;
 
-            if (shapeTag.FillStyles[fillIndex] is not SwfLib.Shapes.FillStyles.SolidFillStyleRGB rgb)
+            if (styles[fillIndex] is not SwfLib.Shapes.FillStyles.SolidFillStyleRGB rgb)
                 continue;
 
-            var color = new Color(rgb.Color.Red / 255f, rgb.Color.Green / 255f, rgb.Color.Blue / 255f, 1f);
+            var color = new Color(
+                rgb.Color.Red / 255f,
+                rgb.Color.Green / 255f,
+                rgb.Color.Blue / 255f,
+                1f
+            );
 
             var loops = BuildLoops(kvp.Value);
 
@@ -619,25 +671,46 @@ private SpriteExportData ProcessTimeline(IEnumerable<SwfTagBase> tags, bool bake
             {
                 var sub = new SubPath { FillColor = color };
                 shapeData.SubPaths.Add(sub);
+
                 bool first = true;
 
                 foreach (var e in loop)
                 {
                     if (first)
                     {
-                        sub.Segments.Add(new PathSegment { Type = "move", Start = e.Start, End = e.Start, Color = color });
+                        sub.Segments.Add(new PathSegment
+                        {
+                            Type = "move",
+                            Start = e.Start,
+                            End = e.Start,
+                            Color = color
+                        });
                         first = false;
                     }
 
-                    sub.Segments.Add(new PathSegment { Type = e.Control.HasValue ? "curve" : "line", Start = e.Start, Control = e.Control ?? Vector2.Zero, End = e.End, Color = color });
+                    sub.Segments.Add(new PathSegment
+                    {
+                        Type = e.Control.HasValue ? "curve" : "line",
+                        Start = e.Start,
+                        Control = e.Control ?? Vector2.Zero,
+                        End = e.End,
+                        Color = color
+                    });
                 }
 
-                sub.Segments.Add(new PathSegment { Type = "line", Start = loop[^1].End, End = loop[0].Start, Color = color });
+                sub.Segments.Add(new PathSegment
+                {
+                    Type = "line",
+                    Start = loop[^1].End,
+                    End = loop[0].Start,
+                    Color = color
+                });
             }
         }
 
         return shapeData;
     }
+
 
     private List<List<Edge>> BuildLoops(List<Edge> edges)
     {
@@ -747,5 +820,23 @@ private SpriteExportData ProcessTimeline(IEnumerable<SwfTagBase> tags, bool bake
 
         public FrameTag Clone() => (FrameTag)MemberwiseClone();
     }
-    class Edge { public Vector2 Start; public Vector2 End; public Vector2? Control; }
+    public class Edge
+    {
+        public Vector2 Start;
+        public Vector2? Control;
+        public Vector2 End;
+        public int? FillIndex;
+
+        public Edge() { }
+
+        public Edge(Vector2 start, Vector2? control, Vector2 end, int? fillIndex)
+        {
+            Start = start;
+            Control = control;
+            End = end;
+            FillIndex = fillIndex;
+        }
+
+        public Edge Reversed() => new Edge(End, Control, Start, FillIndex);
+    }
 }

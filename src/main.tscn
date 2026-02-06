@@ -181,6 +181,11 @@ theme_override_font_sizes/font_size = 12
 button_pressed = true
 text = "Baked Keyframes"
 
+[node name="DebugLines" type="CheckBox" parent="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid" unique_id=892965011]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Debug Lines"
+
 [node name="PanelContainer3" type="PanelContainer" parent="VBox/HBox/LeftPanel/Margin/VBox2" unique_id=1923320938]
 custom_minimum_size = Vector2(0, 70)
 layout_mode = 2
@@ -311,6 +316,7 @@ use_native_dialog = true
 [connection signal="toggled" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid/FallbackGen" to="GenExport" method="_on_fallback_gen_toggled"]
 [connection signal="toggled" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid/HoleDetection" to="GenExport" method="_on_hole_detection_toggled"]
 [connection signal="toggled" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid/BakedKeyframes" to="GenScriptGD" method="_on_baked_keyframes_toggled"]
+[connection signal="toggled" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid/DebugLines" to="GenScriptGD" method="_on_debug_lines_toggled"]
 [connection signal="item_selected" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer3/Grid/Animations" to="GenScriptGD" method="_on_animations_item_selected"]
 [connection signal="value_changed" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer3/Grid/FPS" to="GenScriptGD" method="_on_fps_value_changed"]
 [connection signal="item_selected" from="VBox/HBox/LeftPanel/Margin/VBox2/Tree" to="GenScriptGD" method="_on_tree_item_selected"]

@@ -113,7 +113,7 @@ func _input(event: InputEvent) -> void:
 	if zoom_trigger:
 		if event.is_action_pressed("wheel_up"):
 			%Player.scale *= 1.1
-			%Player.scale = Vector2(min(%Player.scale.x, 10), min(%Player.scale.y, 10))
+			%Player.scale = Vector2(min(%Player.scale.x, 50), min(%Player.scale.y, 50))
 			%ZoomLabel.text = "Zoom " + str(snappedf(%Player.scale.length(), 0.1) * 100)
 		elif event.is_action_pressed("wheel_down"):
 			%Player.scale /= 1.1
@@ -134,3 +134,6 @@ func _on_control_mouse_entered() -> void:
 
 func _on_control_mouse_exited() -> void:
 	zoom_trigger = false
+
+func _on_debug_lines_toggled(toggled_on: bool) -> void:
+	player.draw_debug_mode = toggled_on
