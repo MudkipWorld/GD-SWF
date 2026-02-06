@@ -233,22 +233,9 @@ func export_skelform(player: SWFPlayer, file_name: String = ""):
 		"pos": {"x": player.model_placement.x, "y": -player.model_placement.y},
 		"scale": {"x": 1.0, "y": 1.0},
 		"rot": 0.0,
-		"init_pos": {"x": player.model_placement.x, "y": -player.model_placement.y},
-		"init_scale": {"x": 1.0, "y": 1.0},
-		"init_rot": 0.0,
 		"tex": "",
 		"zindex": 0,
 		"ik_family_id": -1,
-		"ik_mode": 0,
-		"ik_target_id": -1,
-		"ik_constraint": 0,
-		"ik_constraint_str": "None",
-		"ik_bone_ids": [],
-		"binds": [],
-		"vertices": [],
-		"indices": [],
-		"is_hidden": false,
-		"init_is_hidden": false
 	}
 	bones_list.append(root_bone)
 	build_bones_recursive(player, 0, 0, bones_list)
@@ -292,22 +279,9 @@ func build_bones_recursive(player: SWFPlayer, sprite_id: int, parent_bone_idx: i
 			"pos": {"x": local_pos.x, "y": local_pos.y},
 			"scale": {"x": ft.scale_x, "y": ft.scale_y},
 			"rot": deg_to_rad(ft.rotation),
-			"init_pos": {"x": local_pos.x, "y": local_pos.y},
-			"init_scale": {"x": ft.scale_x, "y": ft.scale_y},
-			"init_rot": deg_to_rad(ft.rotation),
 			"tex": tex_name,
 			"zindex": depth,
 			"ik_family_id": -1,
-			"ik_mode": 0,
-			"ik_target_id": -1,
-			"ik_constraint": 0,
-			"ik_constraint_str": "None",
-			"ik_bone_ids": [],
-			"binds": [],
-			"vertices": [],
-			"indices": [],
-			"is_hidden": false,
-			"init_is_hidden": false
 		}
 		bones_list.append(bone)
 		
