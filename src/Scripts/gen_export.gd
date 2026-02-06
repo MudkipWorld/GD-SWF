@@ -363,6 +363,23 @@ func build_animations(player: SWFPlayer, root_sprite_id: int, bones_list: Array)
 						"transition": "Linear"
 					})
 		animations_list.append(anim)
+
+	# flip ScaleY for frames where rotation is beyond 90 deg
+	# todo: make this a toggle, as not all SWFs may flip like this
+	# todo: handle roundabouts
+	for anim in animations_list:
+		for k in range(len(anim["keyframes"])):
+			var kf = anim["keyframes"][k]
+			if not (kf.element == 2 and abs(kf.value) > 1.571):
+				continue
+			# find existing ScaleX frame and override its value
+			# todo: add fallback to create scale frames if it doesn't exist
+			for k2 in range(len(anim["keyframes"])):
+				var kf2 = anim["keyframes"][k2]
+				if kf2.frame == kf.frame and kf2.element == 4 and kf2.bone_id == kf.bone_id:
+					anim["keyframes"][k2].value = -kf2.value
+				
+		
 	return animations_list
 
 func create_texture_atlas(player: SWFPlayer) -> Dictionary:
