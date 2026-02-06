@@ -233,22 +233,9 @@ func export_skelform(player: SWFPlayer, file_name: String = ""):
 		"pos": {"x": player.model_placement.x, "y": -player.model_placement.y},
 		"scale": {"x": 1.0, "y": 1.0},
 		"rot": 0.0,
-		"init_pos": {"x": player.model_placement.x, "y": -player.model_placement.y},
-		"init_scale": {"x": 1.0, "y": 1.0},
-		"init_rot": 0.0,
 		"tex": "",
 		"zindex": 0,
 		"ik_family_id": -1,
-		"ik_mode": 0,
-		"ik_target_id": -1,
-		"ik_constraint": 0,
-		"ik_constraint_str": "None",
-		"ik_bone_ids": [],
-		"binds": [],
-		"vertices": [],
-		"indices": [],
-		"is_hidden": false,
-		"init_is_hidden": false
 	}
 	bones_list.append(root_bone)
 	build_bones_recursive(player, 0, 0, bones_list)
@@ -292,22 +279,9 @@ func build_bones_recursive(player: SWFPlayer, sprite_id: int, parent_bone_idx: i
 			"pos": {"x": local_pos.x, "y": local_pos.y},
 			"scale": {"x": ft.scale_x, "y": ft.scale_y},
 			"rot": deg_to_rad(ft.rotation),
-			"init_pos": {"x": local_pos.x, "y": local_pos.y},
-			"init_scale": {"x": ft.scale_x, "y": ft.scale_y},
-			"init_rot": deg_to_rad(ft.rotation),
 			"tex": tex_name,
 			"zindex": depth,
 			"ik_family_id": -1,
-			"ik_mode": 0,
-			"ik_target_id": -1,
-			"ik_constraint": 0,
-			"ik_constraint_str": "None",
-			"ik_bone_ids": [],
-			"binds": [],
-			"vertices": [],
-			"indices": [],
-			"is_hidden": false,
-			"init_is_hidden": false
 		}
 		bones_list.append(bone)
 		
@@ -389,6 +363,23 @@ func build_animations(player: SWFPlayer, root_sprite_id: int, bones_list: Array)
 						"transition": "Linear"
 					})
 		animations_list.append(anim)
+
+	# flip ScaleY for frames where rotation is beyond 90 deg
+	# todo: make this a toggle, as not all SWFs may flip like this
+	# todo: handle roundabouts
+	for anim in animations_list:
+		for k in range(len(anim["keyframes"])):
+			var kf = anim["keyframes"][k]
+			if not (kf.element == 2 and abs(kf.value) > 1.571):
+				continue
+			# find existing ScaleX frame and override its value
+			# todo: add fallback to create scale frames if it doesn't exist
+			for k2 in range(len(anim["keyframes"])):
+				var kf2 = anim["keyframes"][k2]
+				if kf2.frame == kf.frame and kf2.element == 4 and kf2.bone_id == kf.bone_id:
+					anim["keyframes"][k2].value = -kf2.value
+				
+		
 	return animations_list
 
 func create_texture_atlas(player: SWFPlayer) -> Dictionary:
