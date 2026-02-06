@@ -122,7 +122,7 @@ func _on_export_dialog_dir_selected(dir: String) -> void:
 			%GenExport.export_all_svgs(player)
 		ExportType.SKF:
 			%GenExport.skf_export_folder = dir
-			%GenExport.export_skelform(player, loaded_swf_name)
+			%GenExport.export_skelform(player, loaded_swf_name, loaded_data)
 
 func _input(event: InputEvent) -> void:
 	if zoom_trigger:

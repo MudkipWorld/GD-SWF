@@ -40,6 +40,8 @@ class SWFFrame:
 			transform_matrix = data["TransformMatrix"]
 
 class SWFShape:
+	var backup_subpaths : Array = []
+	
 	var subpaths: Array = []
 	var offset: Vector2 = Vector2.ZERO
 	var size: Vector2 = Vector2.ZERO
@@ -53,7 +55,7 @@ class SWFShape:
 			return
 
 		for sp in data["SubPaths"]:
-			var segments = sp.get("Segments", [])
+			var segments : Array = sp.get("Segments", [])
 			if segments == null or segments.is_empty():
 				continue
 
@@ -67,14 +69,22 @@ class SWFShape:
 				"triangles": {},
 				"color": color
 			})
+			
+			backup_subpaths.append({
+				"segments": segments.duplicate(true),
+				"lines": [],
+				"polygons": [],
+				"triangles": {},
+				"color": color
+			})
 
 	func build_geometry(use_fallback: bool=false, smooth_interation: int=20, hollow_pieces: bool=false):
 		var min_pt = Vector2(INF, INF)
 		var max_pt = Vector2(-INF, -INF)
-
 		var all_polygons_in_shape := []
 		var polygon_source_info := []
 
+		subpaths = backup_subpaths.duplicate(true)
 		for sp_idx in range(subpaths.size()):
 			var sp = subpaths[sp_idx]
 			var lines := []
@@ -389,17 +399,99 @@ class SWFShape:
 			area += (p1.x * p2.y - p2.x * p1.y)
 		return area * 0.5
 
-	func triangulate_polygon(poly: PackedVector2Array, use_fallback : bool = false) -> PackedInt32Array:
+	func triangulate_polygon(poly: PackedVector2Array, use_fallback: bool = false) -> PackedInt32Array:
 		if poly.size() < 3:
 			return PackedInt32Array()
-		var tri := Geometry2D.triangulate_polygon(poly)
-		var triangles := PackedInt32Array(tri)
 		
-		if triangles.size() == 0 && use_fallback:
-			var delaunay_tri := Geometry2D.triangulate_delaunay(poly)
-			return delaunay_tri
-
+		var triangles := PackedInt32Array(Geometry2D.triangulate_polygon(poly))
+		
+		if triangles.size() == 0 and use_fallback:
+			triangles = fallback_triangulate(poly)
+		
 		return triangles
+
+	func fallback_triangulate(poly: PackedVector2Array) -> PackedInt32Array:
+		var n := poly.size()
+		if n < 3:
+			return PackedInt32Array()
+		
+		var clean_poly := PackedVector2Array()
+		clean_poly.append(poly[0])
+		for i in range(1, n):
+			if poly[i] != poly[i-1]:
+				clean_poly.append(poly[i])
+		poly = clean_poly
+		n = poly.size()
+		if n < 3:
+			return PackedInt32Array()
+		
+		var indices := []
+		for i in range(n):
+			indices.append(i)
+		
+		var result := PackedInt32Array()
+		var safe_counter := 0
+		
+		while indices.size() > 3 and safe_counter < 1000:
+			safe_counter += 1
+			var found_point := false
+			
+			for i in range(indices.size()):
+				var prev_idx = indices[(i - 1 + indices.size()) % indices.size()]
+				var curr_idx = indices[i]
+				var next_idx = indices[(i + 1) % indices.size()]
+				
+				if !is_convex(poly, prev_idx, curr_idx, next_idx):
+					continue
+				var has_point_inside := false
+				for j in indices:
+					if j in [prev_idx, curr_idx, next_idx]:
+						continue
+					if point_in_triangle(poly, j, prev_idx, curr_idx, next_idx):
+						has_point_inside = true
+						break
+				var area = ((poly[prev_idx] - poly[curr_idx]).cross(poly[next_idx] - poly[curr_idx])) * 0.5
+				if abs(area) < 0.00001:
+					continue
+				
+				if !has_point_inside:
+					result.append(prev_idx)
+					result.append(curr_idx)
+					result.append(next_idx)
+					indices.remove_at(i)
+					found_point = true
+					break
+			
+			if !found_point:
+
+				for i in range(1, indices.size() - 1):
+					result.append(indices[0])
+					result.append(indices[i])
+					result.append(indices[i+1])
+				indices.clear()
+				break
+		if indices.size() == 3:
+			result.append(indices[0])
+			result.append(indices[1])
+			result.append(indices[2])
+		return result
+
+	func is_convex(poly: PackedVector2Array, a: int, b: int, c: int) -> bool:
+		return ((poly[b] - poly[a]).cross(poly[c] - poly[b])) > 0
+
+	func point_in_triangle(poly: PackedVector2Array, p: int, a: int, b: int, c: int) -> bool:
+		var v0 = poly[c] - poly[a]
+		var v1 = poly[b] - poly[a]
+		var v2 = poly[p] - poly[a]
+		var dot00 = v0.dot(v0)
+		var dot01 = v0.dot(v1)
+		var dot02 = v0.dot(v2)
+		var dot11 = v1.dot(v1)
+		var dot12 = v1.dot(v2)
+		var invDenom = 1.0 / (dot00 * dot11 - dot01 * dot01)
+		var u = (dot11 * dot02 - dot01 * dot12) * invDenom
+		var v = (dot00 * dot12 - dot01 * dot02) * invDenom
+		return (u >= 0) and (v >= 0) and (u + v <= 1)
 
 	func subdivide_quadratic_bezier(p0: Vector2, p1: Vector2, p2: Vector2, steps: int) -> Array:
 		var points := []
@@ -423,6 +515,7 @@ class SWFSprite:
 	var local_x : float = 0.0
 	var local_y : float = 0.0
 	var max_nesting_depth : int = 0
+	var children_referenced : Array = []
 
 	func _init(data : Dictionary):
 		for c in data.get("Children", []):

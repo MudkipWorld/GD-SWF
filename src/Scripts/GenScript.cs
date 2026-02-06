@@ -307,147 +307,160 @@ public partial class GenScript : Node
         GD.Print("Export complete!");
     }
 
-    private SpriteExportData ProcessTimeline(IEnumerable<SwfTagBase> tags, bool bakeFrames = true)
+private SpriteExportData ProcessTimeline(IEnumerable<SwfTagBase> tags, bool bakeFrames = true)
+{
+    var displayList = new Dictionary<int, FrameTag>();
+    var frames = new List<Dictionary<int, FrameTag>>();
+    var children = new Dictionary<int, string>();
+    var frameNames = new List<string>();
+    string pendingLabel = null;
+
+    var labelCounts = new Dictionary<string, int>();
+    var removedDepths = new HashSet<int>();
+
+    FrameTag CloneFrameTag(FrameTag source)
     {
-        var displayList = new Dictionary<int, FrameTag>();
-        var frames = new List<Dictionary<int, FrameTag>>();
-        var children = new Dictionary<int, string>();
-        var frameNames = new List<string>();
-        string pendingLabel = null;
-
-        var labelCounts = new Dictionary<string, int>();
-        var removedDepths = new HashSet<int>();
-
-        FrameTag CloneFrameTag(FrameTag source)
+        if (source == null) return null;
+        return new FrameTag
         {
-            if (source == null) return null;
-            return new FrameTag
-            {
-                SymbolID = source.SymbolID,
-                Depth = source.Depth,
-                X = source.X,
-                Y = source.Y,
-                ScaleX = source.ScaleX,
-                ScaleY = source.ScaleY,
-                Rotation = source.Rotation,
-                TransformMatrix = source.TransformMatrix != null ? (float[])source.TransformMatrix.Clone() : null,
-                Visible = source.Visible,
-                IsDirty = source.IsDirty
-            };
-        }
-
-        Dictionary<int, FrameTag> lastFrame = null;
-
-        float localX = 0f;
-        float localY = 0f;
-        var spriteTag = tags.OfType<DefineSpriteTag>().FirstOrDefault();
-        if (spriteTag != null)
-        {
-            var locals = GetSpriteLocalPositions(spriteTag);
-            if (locals.Count > 0)
-            {
-                var first = locals.First().Value;
-                localX = first.X;
-                localY = first.Y;
-            }
-        }
-
-        foreach (var tag in tags)
-        {
-            switch (tag)
-            {
-                case FrameLabelTag labelTag:
-                    string name = labelTag.Name;
-                    if (!string.IsNullOrEmpty(name))
-                    {
-                        if (labelCounts.ContainsKey(name))
-                        {
-                            labelCounts[name]++;
-                            name += labelCounts[name];
-                        }
-                        else
-                        {
-                            labelCounts[name] = 1;
-                        }
-
-                        pendingLabel = string.IsNullOrEmpty(pendingLabel) ? name : pendingLabel + ", " + name;
-                    }
-                    break;
-
-                case ShowFrameTag:
-                    var frameDict = new Dictionary<int, FrameTag>();
-                    bool isAnimationStart = !bakeFrames && !string.IsNullOrEmpty(pendingLabel);
-
-                    foreach (var kvp in displayList)
-                    {
-                        var f = kvp.Value;
-                        if (bakeFrames || f.IsDirty || isAnimationStart)
-                        {
-                            var clone = CloneFrameTag(f);
-                            if (!bakeFrames) clone.IsDirty = false;
-                            frameDict[kvp.Key] = clone;
-                        }
-                    }
-
-                    if (!bakeFrames && lastFrame != null)
-                    {
-                        foreach (var kvp in lastFrame)
-                        {
-                            int depth = kvp.Key;
-                            if (removedDepths.Contains(depth)) continue;
-                            if (!frameDict.ContainsKey(depth))
-                            {
-                                var carryover = CloneFrameTag(kvp.Value);
-                                carryover.IsDirty = false;
-                                frameDict[depth] = carryover;
-                            }
-                        }
-                    }
-
-                    frames.Add(frameDict);
-                    frameNames.Add(pendingLabel);
-                    pendingLabel = null;
-                    removedDepths.Clear();
-
-                    lastFrame = frameDict
-                        .Where(kvp => kvp.Value.Visible)
-                        .ToDictionary(k => k.Key, k => CloneFrameTag(k.Value));
-                    break;
-
-                case PlaceObjectTag p1:
-                    UpdateDisplayObject(displayList, children, p1.CharacterID, p1.Depth, p1.Matrix, true, true);
-                    break;
-
-                case PlaceObject2Tag p2:
-                    if (!displayList.ContainsKey(p2.Depth) && !p2.HasCharacter) break;
-
-                    int characterId = p2.HasCharacter ? p2.CharacterID : displayList[p2.Depth].SymbolID;
-                    bool isNew = !displayList.ContainsKey(p2.Depth);
-                    UpdateDisplayObject(displayList, children, characterId, p2.Depth, p2.Matrix, isNew, p2.HasMatrix);
-                    break;
-
-                case RemoveObject2Tag r:
-                    removedDepths.Add(r.Depth);
-                    if (displayList.ContainsKey(r.Depth))
-                        displayList.Remove(r.Depth);
-                    break;
-            }
-        }
-        
-        var spriteData = new SpriteExportData
-        {
-            Children = children.Select(kvp => new ChildInfo { ID = kvp.Key, Type = kvp.Value }).ToList(),
-            Frames = frames,
-            FrameNames = frameNames,
-            LocalX = localX,
-            LocalY = localY
+            SymbolID = source.SymbolID,
+            Depth = source.Depth,
+            X = source.X,
+            Y = source.Y,
+            ScaleX = source.ScaleX,
+            ScaleY = source.ScaleY,
+            Rotation = source.Rotation,
+            TransformMatrix = source.TransformMatrix != null ? (float[])source.TransformMatrix.Clone() : null,
+            Visible = source.Visible,
+            IsDirty = source.IsDirty
         };
-
-        spriteData.MaxNestingDepth = ComputeSpriteDepth(spriteTag?.SpriteID ?? 0);
-
-        return spriteData;
-
     }
+
+    Dictionary<int, FrameTag> lastFrame = null;
+
+    float localX = 0f;
+    float localY = 0f;
+    var spriteTag = tags.OfType<DefineSpriteTag>().FirstOrDefault();
+    if (spriteTag != null)
+    {
+        var locals = GetSpriteLocalPositions(spriteTag);
+        if (locals.Count > 0)
+        {
+            var first = locals.First().Value;
+            localX = first.X;
+            localY = first.Y;
+        }
+    }
+
+    var firstFrameData = new Dictionary<int, FrameTag>();
+    int currentFrameIndex = 0;
+
+
+    foreach (var tag in tags)
+    {
+        switch (tag)
+        {
+            case FrameLabelTag labelTag:
+                string name = labelTag.Name;
+                if (!string.IsNullOrEmpty(name))
+                {
+                    if (labelCounts.ContainsKey(name))
+                    {
+                        labelCounts[name]++;
+                        name += labelCounts[name];
+                    }
+                    else
+                    {
+                        labelCounts[name] = 1;
+                    }
+
+                    pendingLabel = string.IsNullOrEmpty(pendingLabel) ? name : pendingLabel + ", " + name;
+                }
+                break;
+
+            case ShowFrameTag:
+                var frameDict = new Dictionary<int, FrameTag>();
+                bool isAnimationStart = !bakeFrames && !string.IsNullOrEmpty(pendingLabel);
+
+                foreach (var kvp in displayList)
+                {
+                    var f = kvp.Value;
+                    var clone = CloneFrameTag(f);
+
+                    if (!firstFrameData.ContainsKey(f.SymbolID))
+                        firstFrameData[f.SymbolID] = CloneFrameTag(f);
+                    
+
+                    if (bakeFrames || f.IsDirty || isAnimationStart)
+                        frameDict[kvp.Key] = clone;
+                }
+
+                if (!bakeFrames && lastFrame != null)
+                {
+                    foreach (var kvp in lastFrame)
+                    {
+                        int depth = kvp.Key;
+                        if (removedDepths.Contains(depth)) continue;
+                        if (!frameDict.ContainsKey(depth))
+                        {
+                            var carryover = CloneFrameTag(kvp.Value);
+                            carryover.IsDirty = false;
+                            frameDict[depth] = carryover;
+
+                          
+                            if (!firstFrameData.ContainsKey(carryover.SymbolID))
+                                firstFrameData[carryover.SymbolID] = CloneFrameTag(carryover);
+                           
+                        }
+                    }
+                }
+
+                frames.Add(frameDict);
+                frameNames.Add(pendingLabel);
+                pendingLabel = null;
+                removedDepths.Clear();
+
+                lastFrame = frameDict
+                    .Where(kvp => kvp.Value.Visible)
+                    .ToDictionary(k => k.Key, k => CloneFrameTag(k.Value));
+
+                currentFrameIndex++;
+                break;
+
+            case PlaceObjectTag p1:
+                UpdateDisplayObject(displayList, children, p1.CharacterID, p1.Depth, p1.Matrix, true, true);
+                break;
+
+            case PlaceObject2Tag p2:
+                if (!displayList.ContainsKey(p2.Depth) && !p2.HasCharacter) break;
+
+                int characterId = p2.HasCharacter ? p2.CharacterID : displayList[p2.Depth].SymbolID;
+                bool isNew = !displayList.ContainsKey(p2.Depth);
+                UpdateDisplayObject(displayList, children, characterId, p2.Depth, p2.Matrix, isNew, p2.HasMatrix);
+                break;
+
+            case RemoveObject2Tag r:
+                removedDepths.Add(r.Depth);
+                if (displayList.ContainsKey(r.Depth))
+                    displayList.Remove(r.Depth);
+                break;
+        }
+    }
+
+    var spriteData = new SpriteExportData
+    {
+        Children = children.Select(kvp => new ChildInfo { ID = kvp.Key, Type = kvp.Value }).ToList(),
+        Frames = frames,
+        FrameNames = frameNames,
+        LocalX = localX,
+        LocalY = localY,
+        FirstFrameData = firstFrameData
+    };
+
+    spriteData.MaxNestingDepth = ComputeSpriteDepth(spriteTag?.SpriteID ?? 0);
+
+    return spriteData;
+}
 
     private void UpdateDisplayObject( Dictionary<int, FrameTag> displayList, Dictionary<int, string> children, int characterId, int depth, SwfMatrix matrix,bool hasCharacter, bool hasMatrix)
     {
@@ -518,6 +531,7 @@ public partial class GenScript : Node
         if (!children.ContainsKey(characterId))
             children[characterId] = shapeDict.ContainsKey(characterId) ? "Shape" : "Sprite";
     }
+
     private bool MatrixEquals(float[] a, float[] b)
     {
         if (a == null || b == null) return false;
@@ -636,7 +650,6 @@ public partial class GenScript : Node
                     });
                 }
 
-                // Close the loop
                 sub.Segments.Add(new PathSegment
                 {
                     Type = "line",
@@ -809,10 +822,8 @@ public string ShapeToSvg(ShapeData shape)
     }
 
 
-
-
     public class ExportDocument { public Dictionary<int, ShapeData> Shapes = new(); public Dictionary<int, SpriteExportData> Sprites = new(); }
-    public class SpriteExportData { public List<ChildInfo> Children = new(); public List<Dictionary<int, FrameTag>> Frames = new(); public List<string> FrameNames = new(); public float LocalX, LocalY;  public int MaxNestingDepth = 0; }
+    public class SpriteExportData { public List<ChildInfo> Children = new(); public List<Dictionary<int, FrameTag>> Frames = new(); public List<string> FrameNames = new(); public float LocalX, LocalY;  public int MaxNestingDepth = 0; public Dictionary<int, FrameTag> FirstFrameData = new();}
     public class ChildInfo { public int ID; public string Type = "Shape"; }
     public class ShapeData { public List<SubPath> SubPaths = new(); public string Svg = ""; }
     public class SubPath { public Color FillColor = new(1, 1, 1, 1); public List<PathSegment> Segments = new(); public Vector2 LastPoint;     public GradientInfo Gradient = null;  public int GradientId = -1;}

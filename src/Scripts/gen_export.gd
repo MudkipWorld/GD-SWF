@@ -199,7 +199,7 @@ func matrix_equals(a: Array, b: Array) -> bool:
 
 #------Fancy lines, okay, no joke, i am very stuck, check the issue.png in the source to see why...
 
-func export_skelform(player: SWFPlayer, file_name: String = ""):
+func export_skelform(player: SWFPlayer, file_name: String = "", data : Dictionary = {}):
 	if player == null:
 		push_error("Player is null")
 		return
@@ -238,7 +238,7 @@ func export_skelform(player: SWFPlayer, file_name: String = ""):
 		"ik_family_id": -1,
 	}
 	bones_list.append(root_bone)
-	build_bones_recursive(player, 0, 0, bones_list)
+	build_bones_recursive(player, 0, 0, bones_list, data)
 	armature["bones"] = bones_list
 	var animations_list = build_animations(player, player.animated_sprite_id, bones_list)
 	armature["animations"] = animations_list
@@ -252,7 +252,7 @@ func export_skelform(player: SWFPlayer, file_name: String = ""):
 	zip.close()
 	print("SKF export complete:", path)
 
-func build_bones_recursive(player: SWFPlayer, sprite_id: int, parent_bone_idx: int, bones_list: Array):
+func build_bones_recursive(player: SWFPlayer, sprite_id: int, parent_bone_idx: int, bones_list: Array, data : Dictionary = {} ):
 	if !player.sprites.has(sprite_id):
 		return
 	var sprite : SWFClasses.SWFSprite = player.sprites[sprite_id]
@@ -269,7 +269,6 @@ func build_bones_recursive(player: SWFPlayer, sprite_id: int, parent_bone_idx: i
 		var tex_name = ""
 		if player.shapes.has(ft.symbol_id):
 			tex_name = "shape_%d" % ft.symbol_id
-			# override local pos to be the offset of this shape
 			local_pos = get_local_shape(player, ft)
 
 		var bone = {
@@ -286,7 +285,7 @@ func build_bones_recursive(player: SWFPlayer, sprite_id: int, parent_bone_idx: i
 		bones_list.append(bone)
 		
 		if player.sprites.has(ft.symbol_id):
-			build_bones_recursive(player, ft.symbol_id, my_bone_idx, bones_list)
+			build_bones_recursive(player, ft.symbol_id, my_bone_idx, bones_list, data)
 
 func build_animations(player: SWFPlayer, root_sprite_id: int, bones_list: Array) -> Array:
 	var animations_list = []
@@ -435,7 +434,6 @@ func create_texture_atlas(player: SWFPlayer) -> Dictionary:
 		"atlas_info": {"filename": "atlas0.png", "size": {"x": atlas_img.get_width(), "y": atlas_img.get_height()}},
 		"texture_map": texture_map
 	}
-
 
 func get_local_shape(player, ft):
 	var shape = player.shapes.get(ft.symbol_id)
