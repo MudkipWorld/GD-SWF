@@ -17,6 +17,7 @@ var loaded_swf_name : String = ""
 var current_export_type : ExportType = ExportType.Normal
 var zoom_trigger : bool = false
 var dragging : bool = false
+var smooth_iterations : int = 5
 
 var selected_shape : SWFClasses.SWFShape = null
 
@@ -48,7 +49,12 @@ func populate_option_button():
 
 func _on_re_gen_poly_pressed() -> void:
 	if selected_shape != null && is_instance_valid(selected_shape):
-		selected_shape.build_geometry(%FallbackGen.button_pressed, 5, %HoleDetection.button_pressed)
+		selected_shape.build_geometry(smooth_iterations, %GenExport.hollow_pieces)
+		selected_shape.generate_svg()
+		var image = Image.new()
+		if !selected_shape.to_svg().is_empty():
+			image.load_svg_from_string(selected_shape.to_svg())
+			selected_shape.texture = ImageTexture.create_from_image(image)
 		var item : TreeItem = tree.get_selected()
 		if item == null or !is_instance_valid(item): return
 		if item.get_metadata(0) == null: return
@@ -70,7 +76,7 @@ func load_path(path : String = ""):
 	loaded_swf_name = path.get_basename().get_file()
 	player.current_animation = 0
 	player.current_frame = 0
-	var shapes : Array = %GenExport.parse_json(loaded_data, player, baked_data)
+	var shapes : Array = %GenExport.parse_json(loaded_data, player, smooth_iterations)
 	populate_tree(shapes)
 	populate_option_button()
 
@@ -79,6 +85,7 @@ func _on_animations_item_selected(index: int) -> void:
 	var sprite : SWFClasses.SWFSprite = player.sprites[player.animated_sprite_id]
 	if index == -1 or index > sprite.animations.size(): return
 	player.current_animation = index
+	player.current_frame = 0
 
 func _on_fps_value_changed(value: float) -> void:
 	player.fps = int(value)
@@ -88,14 +95,16 @@ func _on_tree_item_selected() -> void:
 	
 	if item == null or !is_instance_valid(item): 
 		selected_shape = null
+		%Preview.texture = null
 		return
-	if item.get_metadata(0) == null: return
+	if item.get_metadata(0) == null: 
+		%Preview.texture = null
+		return
 	selected_shape = item.get_metadata(0)
 	if item.get_metadata(0) is SWFClasses.SWFShape:
 		%Preview.texture = item.get_metadata(0).texture
 	else:
 		%Preview.texture = null
-	
 
 func _on_baked_keyframes_toggled(toggled_on: bool) -> void:
 	baked_data = toggled_on
@@ -152,3 +161,6 @@ func _on_control_mouse_exited() -> void:
 
 func _on_debug_lines_toggled(toggled_on: bool) -> void:
 	player.draw_debug_mode = toggled_on
+
+func _on_smooth_iteration_value_changed(value: float) -> void:
+	smooth_iterations = int(value)

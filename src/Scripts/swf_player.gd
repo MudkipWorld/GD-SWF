@@ -213,7 +213,7 @@ func draw_shape(shape: SWFClasses.SWFShape, _transform: Transform2D):
 				var colors: PackedColorArray = PackedColorArray()
 				for i in range(points.size()):
 					colors.append(sp["color"])
-				
+				if indices.is_empty() or points.is_empty(): continue
 				RenderingServer.canvas_item_add_triangle_array(get_canvas_item(),indices,points,colors)
 
 func draw_curve(start_pt: Vector2, control_pt: Vector2, end_pt: Vector2, color: Color, steps := 10):

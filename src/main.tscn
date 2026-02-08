@@ -162,13 +162,6 @@ size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 12
 text = "Reload SWF"
 
-[node name="FallbackGen" type="CheckBox" parent="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid" unique_id=1899145630]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 12
-text = "Fallback"
-
 [node name="HoleDetection" type="CheckBox" parent="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid" unique_id=1453677194]
 unique_name_in_owner = true
 layout_mode = 2
@@ -176,17 +169,22 @@ size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 12
 text = "Holes"
 
-[node name="BakedKeyframes" type="CheckBox" parent="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid" unique_id=1775797561]
-visible = false
-layout_mode = 2
-theme_override_font_sizes/font_size = 12
-button_pressed = true
-text = "Baked Keyframes"
-
 [node name="DebugLines" type="CheckBox" parent="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid" unique_id=892965011]
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
 text = "Debug Lines"
+
+[node name="Label" type="Label" parent="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid" unique_id=323494663]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Smooth iteration"
+
+[node name="SmoothIteration" type="SpinBox" parent="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid" unique_id=1363830472]
+unique_name_in_owner = true
+layout_mode = 2
+min_value = 1.0
+max_value = 50.0
+value = 5.0
 
 [node name="PanelContainer3" type="PanelContainer" parent="VBox/HBox/LeftPanel/Margin/VBox2" unique_id=1923320938]
 custom_minimum_size = Vector2(0, 70)
@@ -315,10 +313,9 @@ use_native_dialog = true
 [connection signal="pressed" from="VBox/TopPanel/HBoxContainer/SaveSKFTintMode" to="GenScriptGD" method="_on_save_svg_pressed"]
 [connection signal="pressed" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid/ReGenPoly" to="GenScriptGD" method="_on_re_gen_poly_pressed"]
 [connection signal="pressed" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid/Reload" to="GenScriptGD" method="_on_reload_pressed"]
-[connection signal="toggled" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid/FallbackGen" to="GenExport" method="_on_fallback_gen_toggled"]
 [connection signal="toggled" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid/HoleDetection" to="GenExport" method="_on_hole_detection_toggled"]
-[connection signal="toggled" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid/BakedKeyframes" to="GenScriptGD" method="_on_baked_keyframes_toggled"]
 [connection signal="toggled" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid/DebugLines" to="GenScriptGD" method="_on_debug_lines_toggled"]
+[connection signal="value_changed" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid/SmoothIteration" to="GenScriptGD" method="_on_smooth_iteration_value_changed"]
 [connection signal="item_selected" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer3/Grid/Animations" to="GenScriptGD" method="_on_animations_item_selected"]
 [connection signal="value_changed" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer3/Grid/FPS" to="GenScriptGD" method="_on_fps_value_changed"]
 [connection signal="item_selected" from="VBox/HBox/LeftPanel/Margin/VBox2/Tree" to="GenScriptGD" method="_on_tree_item_selected"]

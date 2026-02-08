@@ -40,231 +40,319 @@ class SWFFrame:
 			transform_matrix = data["TransformMatrix"]
 
 class SWFShape:
-	var backup_subpaths : Array = []
-	
+	var backup_subpaths: Array = []
 	var subpaths: Array = []
+	var stroke_paths: Array = []
 	var offset: Vector2 = Vector2.ZERO
 	var size: Vector2 = Vector2.ZERO
 	var svg_text: String = ""
-	var texture : ImageTexture = null
-
+	var texture: ImageTexture = null
 	var curve_subdivisions := 5
-	
+
 	func _init(data: Dictionary):
-		if not data.has("SubPaths"):
-			return
+		if data.has("SubPaths"):
+			for sp in data["SubPaths"]:
+				var segments = sp.get("Segments", [])
+				if segments.is_empty(): continue
+				var c = sp.get("FillColor", {"R":255,"G":255,"B":255,"A":255})
+				var color = Color(c["R"]/255.0, c["G"]/255.0, c["B"]/255.0, c["A"]/255.0)
+				var subpath_data = {
+					"segments": segments,
+					"lines": [],
+					"polygons": [],
+					"triangles": {},
+					"color": color
+				}
+				subpaths.append(subpath_data)
+				backup_subpaths.append(subpath_data.duplicate(true))
+		
+		if data.has("Strokes"):
+			for st in data["Strokes"]:
+				var segments = st.get("Segments", [])
+				if segments.is_empty(): continue
+				var c = st.get("StrokeColor", {"R":0,"G":0,"B":0,"A":255})
+				var color = Color(c["R"]/255.0, c["G"]/255.0, c["B"]/255.0, c["A"]/255.0)
+				stroke_paths.append({
+					"segments": segments,
+					"lines": [],
+					"color": color,
+					"width": st.get("Width", 1.0)
+				})
 
-		for sp in data["SubPaths"]:
-			var segments : Array = sp.get("Segments", [])
-			if segments == null or segments.is_empty():
-				continue
-
-			var c = sp.get("FillColor", {"R":255,"G":255,"B":255,"A":255})
-			var color = Color(c["R"]/255.0, c["G"]/255.0, c["B"]/255.0, c["A"]/255.0)
-			
-			subpaths.append({
-				"segments": segments,
-				"lines": [],
-				"polygons": [],
-				"triangles": {},
-				"color": color
-			})
-			
-			backup_subpaths.append({
-				"segments": segments.duplicate(true),
-				"lines": [],
-				"polygons": [],
-				"triangles": {},
-				"color": color
-			})
-
-	func build_geometry(use_fallback: bool=false, smooth_interation: int=20, hollow_pieces: bool=false):
+	func build_geometry(smooth_interation: int = 20, hollow_pieces: bool = false):
+		subpaths = backup_subpaths.duplicate(true)
 		var min_pt = Vector2(INF, INF)
 		var max_pt = Vector2(-INF, -INF)
-		var all_polygons_in_shape := []
+		var all_polygons := []
 		var polygon_source_info := []
 
-		subpaths = backup_subpaths.duplicate(true)
 		for sp_idx in range(subpaths.size()):
 			var sp = subpaths[sp_idx]
 			var lines := []
 			var polygons := []
 			var poly := PackedVector2Array()
 			var last_point = null
+
 			for seg in sp["segments"]:
-				if not seg.has("Start") or not seg.has("End") or not seg.has("Type"):
-					continue
+				if not seg.has("Start") or not seg.has("End") or not seg.has("Type"): continue
 				var start_pt = Vector2(seg["Start"].get("X", 0), seg["Start"].get("Y", 0))
 				var end_pt = Vector2(seg["End"].get("X", 0), seg["End"].get("Y", 0))
-				if last_point and start_pt.distance_squared_to(last_point) > 0.01 * 0.01:
+				
+				if last_point and start_pt.distance_squared_to(last_point) > 0.01*0.01:
 					poly = simplify_collinear(poly, 0.01)
-					if poly.size() >= 3:
-						polygons.append(poly)
+					if poly.size() >= 3: polygons.append(poly)
 					poly = PackedVector2Array()
-				if poly.size() == 0:
-					poly.append(start_pt)
+				if poly.is_empty(): poly.append(start_pt)
+
 				min_pt = min_pt.min(start_pt).min(end_pt)
 				max_pt = max_pt.max(start_pt).max(end_pt)
+
 				var line_data = {"type": seg["Type"], "start": start_pt, "end": end_pt, "control": Vector2.ZERO}
 				if seg["Type"] == "curve" and seg.has("Control"):
 					var ctrl = seg["Control"]
 					if typeof(ctrl) == TYPE_DICTIONARY:
-						var ctrl_pt = Vector2(ctrl.get("X", 0), ctrl.get("Y", 0))
+						var ctrl_pt = Vector2(ctrl.get("X",0), ctrl.get("Y",0))
 						line_data["control"] = ctrl_pt
 						min_pt = min_pt.min(ctrl_pt)
 						max_pt = max_pt.max(ctrl_pt)
-						var curve_len = start_pt.distance_to(ctrl_pt) + ctrl_pt.distance_to(end_pt)
-						var steps = max(smooth_interation, int(curve_len / 4.0))
-						var curve_points = subdivide_quadratic_bezier(start_pt, ctrl_pt, end_pt, steps)
-						for i in range(1, curve_points.size()):
-							poly.append(curve_points[i])
+						var steps = max(smooth_interation, int(start_pt.distance_to(ctrl_pt)+ctrl_pt.distance_to(end_pt))/4)
+						for p in subdivide_quadratic_bezier(start_pt, ctrl_pt, end_pt, steps):
+							poly.append(p)
 				else:
-					var line_len = start_pt.distance_to(end_pt)
-					var steps = max(smooth_interation, int(line_len / 4.0))
-					for s in range(1, steps + 1):
-						poly.append(start_pt.lerp(end_pt, s / float(steps)))
+					var steps = max(smooth_interation, int(start_pt.distance_to(end_pt)/4))
+					for s in range(1, steps+1):
+						poly.append(start_pt.lerp(end_pt, s/float(steps)))
+
 				lines.append(line_data)
-				last_point = poly[poly.size() - 1]
+				last_point = poly[poly.size()-1]
+
 			poly = simplify_collinear(poly, 0.01)
-			if poly.size() >= 3:
-				polygons.append(poly)
-			var final_polygons := []
-			for i in range(polygons.size()):
-				var base_poly = ensure_ccw(polygons[i])
-				for j in range(polygons.size()):
-					if i == j:
-						continue
-					var inner_poly = ensure_cw(polygons[j])
-					if is_polygon_inside(inner_poly, base_poly):
-						var result = Geometry2D.exclude_polygons(base_poly, inner_poly)
-						if result.size() > 0:
-							base_poly = result[0] 
-				final_polygons.append(base_poly)
+			if poly.size() >= 3: polygons.append(poly)
+
+			var normalized := []
+			for p in polygons:
+				if p.size() < 3: continue
+				if compute_signed_area(p) > 0:
+					normalized.append(ensure_ccw(p))
+				else:
+					normalized.append(ensure_cw(p))
+
+			var classified = classify_polygons_with_holes(normalized)
+
 			var tri_points := PackedVector2Array()
 			var tri_indices := PackedInt32Array()
-			var index_offset = 0
-			for fpoly in final_polygons:
-				if fpoly.size() < 3:
-					continue
-				var local_points = PackedVector2Array(fpoly)
-				var local_indices = triangulate_polygon(fpoly, use_fallback)
-				for p in local_points:
-					tri_points.append(p)
+			var final_polygons_list := []
+
+			for entry in classified:
+				var outer = entry["outer"]
+				var holes = entry["holes"]
+				final_polygons_list.append(outer)
+				final_polygons_list.append_array(holes)
+				var bridged_poly = create_bridged_polygon(outer, holes)
+				var local_indices = triangulate_polygon(outer, holes)
+				var offset_idx = tri_points.size()
+				tri_points.append_array(bridged_poly)
 				for idx in local_indices:
-					tri_indices.append(idx + index_offset)
-				index_offset += local_points.size()
-			sp["polygons"] = final_polygons
+					tri_indices.append(idx + offset_idx)
+
+			sp["polygons"] = final_polygons_list 
 			sp["triangles"] = {"points": tri_points, "indices": tri_indices}
+
 			sp["lines"] = lines
-			for poly_idx in range(final_polygons.size()):
-				all_polygons_in_shape.append(final_polygons[poly_idx])
+
+			for poly_idx in range(final_polygons_list.size()):
+				all_polygons.append(final_polygons_list[poly_idx])
 				polygon_source_info.append({"sp_index": sp_idx, "poly_index": poly_idx})
+		for sp in stroke_paths:
+			var lines := []
+			for seg in sp["segments"]:
+				if not seg.has("Start") or not seg.has("End") or not seg.has("Type"): continue
+				var s = Vector2(seg["Start"]["X"], seg["Start"]["Y"])
+				var e = Vector2(seg["End"]["X"], seg["End"]["Y"])
+				var c = seg.get("Control", {"X":0,"Y":0})
+				lines.append({"type": seg["Type"], "start": s, "end": e, "control": Vector2(c["X"],c["Y"]) if seg["Type"]=="curve" else Vector2.ZERO})
+				min_pt = min_pt.min(s).min(e)
+				max_pt = max_pt.max(s).max(e)
+			sp["lines"] = lines
+
 		if min_pt.x != INF:
 			offset = min_pt
 			size = max_pt - min_pt
-		if hollow_pieces and all_polygons_in_shape.size() > 0:
-			detect_global_overlaps(all_polygons_in_shape, polygon_source_info)
+
+		if hollow_pieces and all_polygons.size() > 0:
+			detect_global_overlaps(all_polygons, polygon_source_info)
 			subtract_overlapping_geometry()
+
 		generate_svg()
 
-	func is_polygon_inside(polygon_a: PackedVector2Array, polygon_b: PackedVector2Array) -> bool:
-		for pt in polygon_a:
-			if !Geometry2D.is_point_in_polygon(pt, polygon_b):
-				return false
-		var centroid = Vector2.ZERO
-		for pt in polygon_a:
-			centroid += pt
-		centroid /= polygon_a.size()
-		if !Geometry2D.is_point_in_polygon(centroid, polygon_b):
+	func is_polygon_inside(inner: PackedVector2Array, outer: PackedVector2Array) -> bool:
+		if inner.size() < 3 or outer.size() < 3:
 			return false
-		return true
+		var cx := 0.0
+		var cy := 0.0
+		var a := 0.0
+		for i in range(inner.size()):
+			var p0 = inner[i]
+			var p1 = inner[(i + 1) % inner.size()]
+			var cross = p0.x * p1.y - p1.x * p0.y
+			a += cross
+			cx += (p0.x + p1.x) * cross
+			cy += (p0.y + p1.y) * cross
+		if abs(a) < 0.00001: return false
+		a *= 0.5
+		cx /= (6.0 * a)
+		cy /= (6.0 * a)
+		return Geometry2D.is_point_in_polygon(Vector2(cx, cy) + Vector2(0.001, 0.001), outer)
 
-	func close_loop(poly: PackedVector2Array) -> PackedVector2Array:
-		if poly.size() < 3:
+	func create_bridged_polygon(outer: PackedVector2Array, holes: Array) -> PackedVector2Array:
+		outer = ensure_ccw(outer)
+		var result = outer.duplicate()
+		for hole in holes:
+			if hole.size() < 3:
+				continue
+			hole = ensure_cw(hole)
+
+			var min_dist = INF
+			var outer_idx = 0
+			var hole_idx = 0
+			for o in range(result.size()):
+				for h in range(hole.size()):
+					var d = result[o].distance_squared_to(hole[h])
+					if d < min_dist:
+						min_dist = d
+						outer_idx = o
+						hole_idx = h
+
+			var new_poly = PackedVector2Array()
+			for i in range(result.size()):
+				new_poly.append(result[(outer_idx + i) % result.size()])
+			for i in range(hole.size()):
+				new_poly.append(hole[(hole_idx + i) % hole.size()])
+			new_poly.append(result[outer_idx])
+			new_poly = remove_duplicate_points(new_poly)
+			result = close_loop(new_poly)
+		return result
+
+	func triangulate_polygon(outer: PackedVector2Array, holes: Array) -> PackedInt32Array:
+		var bridged_poly = create_bridged_polygon(outer, holes)
+		return fallback_triangulate(bridged_poly)
+
+	func remove_duplicate_points(poly: PackedVector2Array) -> PackedVector2Array:
+		if poly.size() < 2:
 			return poly
-		if poly[0] != poly[poly.size() - 1]:
-			var closed = poly.duplicate()
-			closed.append(poly[0])
-			return closed
-		return poly
+		var clean = PackedVector2Array()
+		clean.append(poly[0])
+		for i in range(1, poly.size()):
+			if poly[i] != poly[i-1]:
+				clean.append(poly[i])
+		if clean[0] == clean[clean.size()-1] and clean.size() > 1:
+			clean.remove_at(clean.size()-1)
+		return clean
+
+	func classify_polygons_with_holes(polygons: Array) -> Array:
+		var outers := []
+		var holes := []
+		for poly in polygons:
+			if poly.size() < 3: continue
+			if compute_signed_area(poly) > 0:
+				outers.append(ensure_ccw(poly))
+			else:
+				holes.append(ensure_cw(poly))
+		var result := []
+		for outer in outers:
+			result.append({"outer": outer, "holes": []})
+		for hole in holes:
+			var best_outer = -1
+			var smallest_area_diff = INF
+			var hole_area = abs(compute_signed_area(hole))
+			for i in range(result.size()):
+				var outer = result[i]["outer"]
+				if is_polygon_inside(hole, outer):
+					var outer_area = abs(compute_signed_area(outer))
+					var area_diff = outer_area - hole_area
+					if area_diff > 0 and area_diff < smallest_area_diff:
+						smallest_area_diff = area_diff
+						best_outer = i
+			if best_outer != -1:
+				result[best_outer]["holes"].append(hole)
+			else:
+				result.append({"outer": hole.duplicate(), "holes": []})
+
+		return result
 
 	func subtract_overlapping_geometry():
-		if subpaths.is_empty():
-			return
+		if subpaths.is_empty(): return
+		
 		var indices_to_remove = []
 		var i = 0
 		while i < subpaths.size():
 			if indices_to_remove.has(i):
 				i += 1
 				continue
+				
 			var sp_a = subpaths[i]
 			var polys_a = sp_a["polygons"]
 			if polys_a.is_empty():
 				i += 1
 				continue
+			var poly_a = polys_a[0] 
+			if poly_a.size() < 3:
+				i += 1
+				continue
+
 			var j = i + 1
 			while j < subpaths.size():
 				if indices_to_remove.has(j):
 					j += 1
 					continue
+					
 				var sp_b = subpaths[j]
+				if sp_a["color"] != sp_b["color"]:
+					j += 1
+					continue
+
 				var polys_b = sp_b["polygons"]
 				if polys_b.is_empty():
 					j += 1
 					continue
-				var poly_a = polys_a[0]
+					
 				var poly_b = polys_b[0]
+
 				var min_a = poly_a[0]; var max_a = poly_a[0]
 				for p in poly_a: min_a = min_a.min(p); max_a = max_a.max(p)
 				var min_b = poly_b[0]; var max_b = poly_b[0]
 				for p in poly_b: min_b = min_b.min(p); max_b = max_b.max(p)
+				
 				if max_a.x < min_b.x or min_a.x > max_b.x or max_a.y < min_b.y or min_a.y > max_b.y:
 					j += 1
 					continue
-				var inside_count = 0
-				for p in poly_b:
-					if Geometry2D.is_point_in_polygon(p, poly_a):
-						inside_count += 1
-				var inside_ratio = float(inside_count) / float(poly_b.size())
-				if inside_ratio < 0.9:
-					j += 1
-					continue
-				var donut_polys = Geometry2D.exclude_polygons(poly_a, poly_b)
-				if donut_polys.size() == 0:
-					indices_to_remove.append(i)
-					break
-				var final_loops = []
-				var outer = donut_polys[0]
-				if outer.size() >= 3:
-					outer = simplify_collinear(outer, 0.001)
-					outer = ensure_ccw(outer)
-					outer = close_loop(outer)
-					final_loops.append(outer)
-				for k in range(1, donut_polys.size()):
-					var hole = donut_polys[k]
-					if hole.size() >= 3:
-						hole = simplify_collinear(hole, 0.001)
-						hole = ensure_cw(hole)
-						hole = close_loop(hole)
-						final_loops.append(hole)
-				if final_loops.size() > 0:
-					sp_a["polygons"] = final_loops
-					sp_a["lines"] = []
-					var combined_poly_points = PackedVector2Array()
-					for loop in final_loops:
-						combined_poly_points.append_array(loop)
-						if loop[0] != loop[loop.size() - 1]:
-							combined_poly_points.append(loop[0])
-					var local_indices = triangulate_polygon(combined_poly_points, true)
-					if local_indices.size() == 0:
-						sp_a["polygons"] = [final_loops[0]]
-						combined_poly_points = final_loops[0]
-						local_indices = triangulate_polygon(combined_poly_points, true)
-					sp_a["triangles"] = {"points": combined_poly_points, "indices": local_indices}
-					indices_to_remove.append(j)
-				j += 1
-			i += 1
 
+				var center_b = Vector2.ZERO
+				for p in poly_b: center_b += p
+				center_b /= poly_b.size()
+				
+				if Geometry2D.is_point_in_polygon(center_b, poly_a):
+					var donut_polys = Geometry2D.exclude_polygons(poly_a, poly_b)
+					
+					if donut_polys.size() == 0:
+						indices_to_remove.append(i)
+						break
+					donut_polys.sort_custom(func(a, b): return abs(compute_signed_area(a)) > abs(compute_signed_area(b)))
+					var new_outer = donut_polys[0]
+					var new_holes = []
+					if donut_polys.size() > 1:
+						for k in range(1, donut_polys.size()):
+							new_holes.append(donut_polys[k])
+					sp_a["polygons"] = [new_outer] + new_holes
+					sp_a["lines"] = []
+					var bridged = create_bridged_polygon(new_outer, new_holes)
+					var indices = triangulate_polygon(new_outer, new_holes)
+					sp_a["triangles"] = {"points": bridged, "indices": indices}
+					poly_a = new_outer 
+					indices_to_remove.append(j)
+				else:
+					j += 1
+			i += 1
 		indices_to_remove.sort()
 		indices_to_remove.reverse()
 		for idx in indices_to_remove:
@@ -286,11 +374,6 @@ class SWFShape:
 				if Geometry2D.intersect_polygons(p1, p2).size() > 0:
 					var _info1 = source_info[i]
 					var _info2 = source_info[j]
-
-	func sanitize_vector(v: Vector2) -> Vector2:
-		if !is_finite(v.x) or !is_finite(v.y):
-			return Vector2.ZERO
-		return v
 
 	func generate_svg():
 		if subpaths.is_empty():
@@ -316,8 +399,7 @@ class SWFShape:
 
 			var d := ""
 			for poly in sp["polygons"]:
-				if poly.size() < 3:
-					continue
+				if poly.size() < 3: continue
 
 				var start_pt = sanitize_vector(poly[0]) - offset
 				d += "M %f %f " % [start_pt.x, start_pt.y]
@@ -340,7 +422,6 @@ class SWFShape:
 					var grad_id = "grad%d" % sp.gradient_id
 					fill_attr = "url(#%s)" % grad_id
 
-					# create linear gradient definition
 					defs.append('<linearGradient id="%s" x1="%f" y1="%f" x2="%f" y2="%f" gradientUnits="userSpaceOnUse">' %
 						[grad_id, sp.gradient.x1, sp.gradient.y1, sp.gradient.x2, sp.gradient.y2])
 					for stop in sp.gradient.stops:
@@ -353,7 +434,38 @@ class SWFShape:
 				sb.append('<path d="%s" fill="%s" fill-opacity="%f" fill-rule="evenodd" stroke="none"/>' % [d, fill_attr, alpha])
 				has_content = true
 
-		# insert gradient definitions if any
+		for sp in stroke_paths:
+			if not sp.has("lines") or sp["lines"].is_empty():
+				continue
+
+			var d := ""
+			var first := true
+
+			for l in sp["lines"]:
+				var s = sanitize_vector(l["start"]) - offset
+				var e = sanitize_vector(l["end"]) - offset
+
+				if first:
+					d += "M %f %f " % [s.x, s.y]
+					first = false
+
+				if l["type"] == "curve":
+					var c = sanitize_vector(l["control"]) - offset
+					d += "Q %f %f %f %f " % [c.x, c.y, e.x, e.y]
+				else:
+					d += "L %f %f " % [e.x, e.y]
+
+			if d.length() > 0:
+				sb.append(
+					'<path d="%s" fill="none" stroke="#%s" stroke-opacity="%f" stroke-width="%f" stroke-linecap="round" stroke-linejoin="round"/>' %
+					[
+						d,
+						sp["color"].to_html(false),
+						sp["color"].a,
+						sp["width"]
+					]
+				)
+
 		if defs.size() > 0:
 			sb.insert(1, "<defs>%s</defs>\n" % "".join(defs))
 
@@ -378,8 +490,7 @@ class SWFShape:
 		return poly
 
 	func simplify_collinear(poly: PackedVector2Array, angle_eps: float = 0.01) -> PackedVector2Array:
-		if poly.size() < 3:
-			return poly
+		if poly.size() < 3: return poly
 		var new_poly = PackedVector2Array()
 		new_poly.append(poly[0])
 		for i in range(1, poly.size() - 1):
@@ -399,82 +510,64 @@ class SWFShape:
 			area += (p1.x * p2.y - p2.x * p1.y)
 		return area * 0.5
 
-	func triangulate_polygon(poly: PackedVector2Array, use_fallback: bool = false) -> PackedInt32Array:
-		if poly.size() < 3:
-			return PackedInt32Array()
-		
-		var triangles := PackedInt32Array(Geometry2D.triangulate_polygon(poly))
-		
-		if triangles.size() == 0 and use_fallback:
-			triangles = fallback_triangulate(poly)
-		
-		return triangles
-
 	func fallback_triangulate(poly: PackedVector2Array) -> PackedInt32Array:
 		var n := poly.size()
 		if n < 3:
 			return PackedInt32Array()
-		
-		var clean_poly := PackedVector2Array()
-		clean_poly.append(poly[0])
-		for i in range(1, n):
-			if poly[i] != poly[i-1]:
-				clean_poly.append(poly[i])
-		poly = clean_poly
-		n = poly.size()
-		if n < 3:
-			return PackedInt32Array()
-		
+
 		var indices := []
 		for i in range(n):
 			indices.append(i)
-		
-		var result := PackedInt32Array()
+
+		var triangles := PackedInt32Array()
 		var safe_counter := 0
-		
-		while indices.size() > 3 and safe_counter < 1000:
+
+		while indices.size() > 3 and safe_counter < 5000:
 			safe_counter += 1
-			var found_point := false
-			
+			var found := false
+
 			for i in range(indices.size()):
 				var prev_idx = indices[(i - 1 + indices.size()) % indices.size()]
 				var curr_idx = indices[i]
 				var next_idx = indices[(i + 1) % indices.size()]
-				
+
 				if !is_convex(poly, prev_idx, curr_idx, next_idx):
 					continue
-				var has_point_inside := false
+
+				var has_inside := false
 				for j in indices:
 					if j in [prev_idx, curr_idx, next_idx]:
 						continue
 					if point_in_triangle(poly, j, prev_idx, curr_idx, next_idx):
-						has_point_inside = true
+						has_inside = true
 						break
-				var area = ((poly[prev_idx] - poly[curr_idx]).cross(poly[next_idx] - poly[curr_idx])) * 0.5
-				if abs(area) < 0.00001:
-					continue
-				
-				if !has_point_inside:
-					result.append(prev_idx)
-					result.append(curr_idx)
-					result.append(next_idx)
-					indices.remove_at(i)
-					found_point = true
-					break
-			
-			if !found_point:
 
+				var area = ((poly[prev_idx] - poly[curr_idx]).cross(poly[next_idx] - poly[curr_idx])) * 0.5
+				if abs(area) < 1e-6:
+					continue
+
+				if !has_inside:
+					triangles.append(prev_idx)
+					triangles.append(curr_idx)
+					triangles.append(next_idx)
+					indices.remove_at(i)
+					found = true
+					break
+
+			# fallback: if no ear found, make fan from first vertex
+			if !found:
 				for i in range(1, indices.size() - 1):
-					result.append(indices[0])
-					result.append(indices[i])
-					result.append(indices[i+1])
-				indices.clear()
+					triangles.append(indices[0])
+					triangles.append(indices[i])
+					triangles.append(indices[i + 1])
 				break
+
 		if indices.size() == 3:
-			result.append(indices[0])
-			result.append(indices[1])
-			result.append(indices[2])
-		return result
+			triangles.append(indices[0])
+			triangles.append(indices[1])
+			triangles.append(indices[2])
+
+		return triangles
 
 	func is_convex(poly: PackedVector2Array, a: int, b: int, c: int) -> bool:
 		return ((poly[b] - poly[a]).cross(poly[c] - poly[b])) > 0
@@ -503,9 +596,22 @@ class SWFShape:
 		return points
 
 	func get_local_center() -> Vector2:
-		if size == Vector2.ZERO:
-			return Vector2.ZERO
+		if size == Vector2.ZERO: return Vector2.ZERO
 		return offset + size * 0.5
+
+	func sanitize_vector(v: Vector2) -> Vector2:
+		if !is_finite(v.x) or !is_finite(v.y): return Vector2.ZERO
+		return v
+
+	func close_loop(poly: PackedVector2Array) -> PackedVector2Array:
+		if poly.size() < 3:
+			return poly
+		if poly[0] != poly[poly.size() - 1]:
+			var closed = poly.duplicate()
+			closed.append(poly[0])
+			return closed
+		return poly
+
 
 class SWFSprite:
 	var children : Array = []
