@@ -237,10 +237,10 @@ func export_skelform(player: SWFPlayer, file_name: String = "", data : Dictionar
 	}
 	bones_list.append(root_bone)
 	
-	var symbol_to_bone : Dictionary = {}
-	build_bones_recursive_2(player, 0, 0, bones_list, symbol_to_bone)
+	#var symbol_to_bone : Dictionary = {}
+	#build_bones_recursive_2(player, 0, 0, bones_list, symbol_to_bone)
 	
-	#build_bones_recursive(player, 0, 0, bones_list)
+	build_bones_recursive(player, 0, 0, bones_list)
 	armature["bones"] = bones_list
 	var animations_list = build_animations(player, player.animated_sprite_id, bones_list)
 	armature["animations"] = animations_list
@@ -445,26 +445,6 @@ func create_texture_atlas(player: SWFPlayer) -> Dictionary:
 		"texture_map": texture_map
 	}
 
-func get_local_shape(player, ft):
-	var shape = player.shapes.get(ft.symbol_id)
-	var pos := Vector2(ft.x, ft.y)
-	var min_pt := Vector2(INF, INF)
-	var max_pt := Vector2(-INF, -INF)
-	if shape == null: return Vector2.ZERO
-	for sp in shape.subpaths:
-		for seg in sp["segments"]:
-			for pt in [seg.Start, seg.End, seg.Control]:
-				var pt_pos = Vector2(pt["X"], pt["Y"])
-				if pt_pos != Vector2.ZERO:
-					var transformed = pos + pt_pos
-					min_pt = Vector2(min(min_pt.x, transformed.x), min(min_pt.y, transformed.y))
-					max_pt = Vector2(max(max_pt.x, transformed.x), max(max_pt.y, transformed.y))
-	var local_pos = (min_pt + max_pt) * 0.5
-
-	# flip Y, since swf is -Y while skf is +Y
-	local_pos.y = -local_pos.y
-	return local_pos
-
 # TEST-AREA
 
 # ---- More fancy line! Wip, a proper way to export all sprites/ shapes to skf. Partially works, placements and visibility are broken..
@@ -542,3 +522,25 @@ func build_bones_recursive_2(player: SWFPlayer, sprite_id: int, parent_bone_idx:
 
 		if player.sprites.has(sym_id):
 			build_bones_recursive_2(player, sym_id, bone_id, bones_list, symbol_to_bone)
+
+# -- Helper i guess
+func get_local_shape(player, ft):
+	if ft == null or !is_instance_valid(ft): return Vector2.ZERO
+	var shape = player.shapes.get(ft.symbol_id)
+	var pos := Vector2(ft.x, ft.y)
+	var min_pt := Vector2(INF, INF)
+	var max_pt := Vector2(-INF, -INF)
+	if shape == null: return Vector2.ZERO
+	for sp in shape.subpaths:
+		for seg in sp["segments"]:
+			for pt in [seg.Start, seg.End, seg.Control]:
+				var pt_pos = Vector2(pt["X"], pt["Y"])
+				if pt_pos != Vector2.ZERO:
+					var transformed = pos + pt_pos
+					min_pt = Vector2(min(min_pt.x, transformed.x), min(min_pt.y, transformed.y))
+					max_pt = Vector2(max(max_pt.x, transformed.x), max(max_pt.y, transformed.y))
+	var local_pos = (min_pt + max_pt) * 0.5
+
+	# flip Y, since swf is -Y while skf is +Y
+	local_pos.y = -local_pos.y
+	return local_pos
