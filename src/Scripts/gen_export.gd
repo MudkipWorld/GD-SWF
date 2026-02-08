@@ -237,10 +237,10 @@ func export_skelform(player: SWFPlayer, file_name: String = "", data : Dictionar
 	}
 	bones_list.append(root_bone)
 	
-	#var symbol_to_bone : Dictionary = {}
-	#build_bones_recursive_2(player, 0, 0, bones_list, symbol_to_bone)
+	var symbol_to_bone : Dictionary = {}
+	build_bones_recursive(player, 0, 0, bones_list, symbol_to_bone)
 	
-	build_bones_recursive(player, 0, 0, bones_list)
+	#build_bones_recursive_old(player, 0, 0, bones_list)
 	armature["bones"] = bones_list
 	var animations_list = build_animations(player, player.animated_sprite_id, bones_list)
 	armature["animations"] = animations_list
@@ -254,7 +254,7 @@ func export_skelform(player: SWFPlayer, file_name: String = "", data : Dictionar
 	zip.close()
 	print("SKF export complete:", path)
 
-func build_bones_recursive(player: SWFPlayer, sprite_id: int, parent_bone_idx: int, bones_list: Array):
+func build_bones_recursive_old(player: SWFPlayer, sprite_id: int, parent_bone_idx: int, bones_list: Array):
 	if !player.sprites.has(sprite_id):
 		return
 	var sprite : SWFClasses.SWFSprite = player.sprites[sprite_id]
@@ -267,11 +267,12 @@ func build_bones_recursive(player: SWFPlayer, sprite_id: int, parent_bone_idx: i
 		var ft = frame_dict[depth]
 		
 		var my_bone_idx = bones_list.size()
-		var local_pos = Vector2(ft.local_x, ft.local_y)
+		var local_pos = Vector2(ft.x, -ft.y)
 		var tex_name = ""
 		if player.shapes.has(ft.symbol_id):
 			tex_name = "shape_%d" % ft.symbol_id
-			local_pos = get_local_shape(player, ft)
+			local_pos.x -= get_local_shape(player, ft).x
+			local_pos.y = get_local_shape(player, ft).y
 
 		var bone = {
 			"id": my_bone_idx,
@@ -287,14 +288,16 @@ func build_bones_recursive(player: SWFPlayer, sprite_id: int, parent_bone_idx: i
 		bones_list.append(bone)
 		
 		if player.sprites.has(ft.symbol_id):
-			build_bones_recursive(player, ft.symbol_id, my_bone_idx, bones_list)
+			build_bones_recursive_old(player, ft.symbol_id, my_bone_idx, bones_list)
 
 func build_animations(player: SWFPlayer, root_sprite_id: int, bones_list: Array) -> Array:
 	var animations_list = []
 	if !player.sprites.has(root_sprite_id):
 		return animations_list
+	
 	var root_sprite : SWFClasses.SWFSprite = player.sprites[root_sprite_id]
 	var symbol_to_bones_map = {}
+	
 	for b in bones_list:
 		if b.name.begins_with("symbol_"):
 			var parts = b.name.split("_")
@@ -302,6 +305,7 @@ func build_animations(player: SWFPlayer, root_sprite_id: int, bones_list: Array)
 			if !symbol_to_bones_map.has(sym_id):
 				symbol_to_bones_map[sym_id] = []
 			symbol_to_bones_map[sym_id].append(b.id)
+	
 	var anim_names = root_sprite.animations.keys()
 	for anim_id in range(anim_names.size()):
 		var anim_name = anim_names[anim_id]
@@ -309,18 +313,21 @@ func build_animations(player: SWFPlayer, root_sprite_id: int, bones_list: Array)
 		var frame_indices = root_sprite.animations[anim_name]
 		if frame_indices.is_empty():
 			continue
+		
 		var frame_offset = frame_indices[0]
 		for f_idx in frame_indices:
 			var local_frame = f_idx - frame_offset
 			if local_frame < 0 or f_idx >= root_sprite.frames.size():
 				continue
+			
 			var frame_data = root_sprite.frames[f_idx]
 			var depths = frame_data.keys()
 			for depth in depths:
 				var ft = frame_data[depth]
 				var target_bone_ids = symbol_to_bones_map.get(ft.symbol_id, [])
+				
 				for bone_id in target_bone_ids:
-					var local_pos = Vector2(ft.x, -ft.y)
+					var local_pos = Vector2(ft.local_x, ft.local_y)
 					var visib = 0.0
 					if !ft.visible:
 						visib = 1.0
@@ -390,15 +397,16 @@ func build_animations(player: SWFPlayer, root_sprite_id: int, bones_list: Array)
 					anim["keyframes"][k2].value = -kf2.value
 	return animations_list
 
+
+# Builds the texture atlas for the Skelform export.
 func create_texture_atlas(player: SWFPlayer) -> Dictionary:
-	var atlas_img := Image.create(2048, 2048, false, Image.FORMAT_RGBA8)
+	var atlas_img : Image = Image.create(2048, 2048, false, Image.FORMAT_RGBA8)
 	atlas_img.fill(Color(0,0,0,0))
 	
-	var style_textures := []
-	var texture_map := {} 
-	
-	var cursor := Vector2(0, 0)
-	var row_height := 0
+	var style_textures : Array = []
+	var texture_map : Dictionary = {} 
+	var cursor : Vector2 = Vector2(0, 0)
+	var row_height : int = 0
 	
 	var shape_ids = player.shapes.keys()
 	
@@ -408,7 +416,7 @@ func create_texture_atlas(player: SWFPlayer) -> Dictionary:
 		if s.svg_text.is_empty():
 			s.generate_svg()
 		
-		var img := Image.new()
+		var img : Image = Image.new()
 		if s.svg_text.is_empty(): continue
 		var err = img.load_svg_from_string(s.svg_text)
 		
@@ -438,37 +446,41 @@ func create_texture_atlas(player: SWFPlayer) -> Dictionary:
 		cursor.x += img.get_width()
 		row_height = max(row_height, img.get_height())
 
+	
 	return {
 		"image": atlas_img,
 		"style": {"name": "Default", "textures": style_textures},
 		"atlas_info": {"filename": "atlas0.png", "size": {"x": atlas_img.get_width(), "y": atlas_img.get_height()}},
-		"texture_map": texture_map
-	}
+		"texture_map": texture_map}
 
 # TEST-AREA
 
 # ---- More fancy line! Wip, a proper way to export all sprites/ shapes to skf. Partially works, placements and visibility are broken..
 # ---- No joke, if you are looking at this and can help, could you? i am not good with recursive stuff lol.
-func build_bones_recursive_2(player: SWFPlayer, sprite_id: int, parent_bone_idx: int, bones_list: Array, symbol_to_bone: Dictionary):
+
+func build_bones_recursive(player: SWFPlayer, sprite_id: int, parent_bone_idx: int, bones_list: Array, symbol_to_bone: Dictionary):
 	if !player.sprites.has(sprite_id): return
 	var sprite: SWFClasses.SWFSprite = player.sprites[sprite_id]
-
+	
+	# loops through the children of the current selected sprite
 	for child in sprite.children:
 		var sym_id = child.id
 		if symbol_to_bone.has(sym_id):
 			continue
-
+	
+		# adds the sprite/ object to the list of seen bones
 		var bone_id = bones_list.size()
 		symbol_to_bone[sym_id] = bone_id
-
+	
 		var tex_name = ""
 		var local_pos = Vector2.ZERO
 		var scale = Vector2(1,1)
 		var rotation = 0.0
 		var zindex = 0
 		var is_hidden = false
-
 		var first_ft = null
+		
+		# loops through each frame of the sprite's frames data, check the SWFClasses for how the data looks.
 		for frame_dict in sprite.frames:
 			for depth in frame_dict.keys():
 				var ft = frame_dict[depth]
@@ -478,34 +490,21 @@ func build_bones_recursive_2(player: SWFPlayer, sprite_id: int, parent_bone_idx:
 					break
 			if first_ft != null:
 				break
-
+		
+		# checks if the frame data is valid, if so, it sets the position, rotation, scale and visible data from that frame.
 		if first_ft != null:
-			local_pos = Vector2(first_ft.x, -first_ft.y)
+			local_pos = Vector2(first_ft.local_x, first_ft.local_y)
 			scale = Vector2(first_ft.scale_x, first_ft.scale_y)
 			rotation = deg_to_rad(first_ft.rotation)
-			is_hidden = not first_ft.visible
-
+			is_hidden = !first_ft.visible
+		
+		# since Skelform doesn't have proper pivot points, this code ensures that the bone that uses a texture is correctly placed/ centered.
+		# rotation and scale are not required.
 		if player.shapes.has(sym_id):
 			tex_name = "shape_%d" % sym_id
-			local_pos += get_local_shape(player, first_ft if first_ft != null else null)
-
-		elif player.sprites.has(sym_id):
-			var child_sprite: SWFClasses.SWFSprite = player.sprites[sym_id]
-			if child_sprite.frames.size() > 0:
-				var found_child_ft = null
-				for child_frame_dict in child_sprite.frames:
-					for depth in child_frame_dict.keys():
-						var child_ft = child_frame_dict[depth]
-						if child_ft.symbol_id == sym_id:
-							found_child_ft = child_ft
-							break
-					if found_child_ft != null:
-						break
-				if found_child_ft != null:
-					local_pos += Vector2(found_child_ft.x, -found_child_ft.y)
-					scale = Vector2(found_child_ft.scale_x, found_child_ft.scale_y)
-					rotation = deg_to_rad(found_child_ft.rotation)
-
+			local_pos = get_local_shape(player, first_ft)
+		
+		# builds the bone based off the current selected sprite
 		var bone = {
 			"id": bone_id,
 			"parent_id": parent_bone_idx,
@@ -519,9 +518,10 @@ func build_bones_recursive_2(player: SWFPlayer, sprite_id: int, parent_bone_idx:
 			"is_hidden": is_hidden
 		}
 		bones_list.append(bone)
-
+		
+		# goes through the rest of the sprites in the player.
 		if player.sprites.has(sym_id):
-			build_bones_recursive_2(player, sym_id, bone_id, bones_list, symbol_to_bone)
+			build_bones_recursive(player, sym_id, bone_id, bones_list, symbol_to_bone)
 
 # -- Helper i guess
 func get_local_shape(player, ft):
