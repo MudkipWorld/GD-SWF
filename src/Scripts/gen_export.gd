@@ -8,142 +8,21 @@ var skf_export_folder : String = "user://SKFExports/"
 var use_fallback : bool = false
 var hollow_pieces : bool = false
 
-func save_gdwf(path: String, player : SWFPlayer) -> void:
-	if !DirAccess.dir_exists_absolute(gdwf_export_folder):
-		DirAccess.make_dir_absolute(gdwf_export_folder)
-	if path.get_extension().is_empty():
-		path += ".tres"
-	var res = GDWFResource.new()
-	res.shapes = {}
-	res.sprites = {}
-	res.sprite_current_frames = {}
-	res.animation_sprite_id = player.animated_sprite_id
-	for id in player.shapes.keys():
-		var shape : SWFClasses.SWFShape = player.shapes[id]
-		res.shapes[id] = {
-			"offset": shape.offset,
-			"size": shape.size,
-			"subpaths": shape.subpaths
-		}
-	for id in player.sprites.keys():
-		var sprite : SWFClasses.SWFSprite = player.sprites[id]
-		var sprite_dict = {
-			"children": [],
-			"frames": [],
-			"frame_names": sprite.frame_names.duplicate(),
-			"animations": {}
-		}
-		for child in sprite.children:
-			sprite_dict["children"].append({
-				"id": child.id,
-				"type": child.type
-			})
-		for frame_dict in sprite.frames:
-			var frame_data = {}
-			for key in frame_dict.keys():
-				var f : SWFClasses.SWFFrame = frame_dict[key]
-				frame_data[key] = {
-					"symbol_id": f.symbol_id,
-					"depth": f.depth,
-					"x": f.x,
-					"y": f.y,
-					"scale_x": f.scale_x,
-					"scale_y": f.scale_y,
-					"rotation": f.rotation,
-					"visible": f.visible,
-					"transform_matrix": f.transform_matrix
-				}
-			sprite_dict["frames"].append(frame_data)
-		for anim_name in sprite.animations.keys():
-			sprite_dict["animations"][anim_name] = sprite.animations[anim_name].duplicate()
-		res.sprites[id] = sprite_dict
-		res.sprite_current_frames[id] = player.sprite_current_frames.get(id, 0)
-	res.metadata = {"source_file": path}
-	var err = ResourceSaver.save(res, path)
-	if err != OK:
-		printerr("Failed to save GDWFResource:", path)
-		return
-	print("Saved GDWFResource to", path)
 
-func load_gdwf(file: GDWFResource, player : SWFPlayer) -> void:
-	if file == null:
-		printerr("Failed to load GDWFResource:", file)
-		return
-	player.file_loaded_right = true
-	player.shapes.clear()
-	player.sprites.clear()
-	player.sprite_current_frames.clear()
-	player.sprite_current_animation.clear()
-	player.sprite_current_anim_frame.clear()
-	player.animated_sprite_id = file.animation_sprite_id
-	for id in file.shapes.keys():
-		var shape_data = file.shapes[id]
-		var shape = SWFClasses.SWFShape.new({})
-		shape.offset = shape_data.get("offset", Vector2.ZERO)
-		shape.size = shape_data.get("size", Vector2.ZERO)
-		shape.subpaths = shape_data.get("subpaths", [])
-		player.shapes[id] = shape
-	for id in file.sprites.keys():
-		var sp_data = file.sprites[id]
-		var sprite = SWFClasses.SWFSprite.new({})
-		sprite.children = []
-		for child_data in sp_data.get("children", []):
-			sprite.children.append(SWFClasses.SWFChild.new({
-				"ID": child_data.get("id", 0),
-				"Type": child_data.get("type", "Shape")
-			}))
-		sprite.frames = []
-		for frame_dict in sp_data.get("frames", []):
-			var new_frame_dict = {}
-			for key in frame_dict.keys():
-				var f_data = frame_dict[key]
-				new_frame_dict[key] = SWFClasses.SWFFrame.new({
-					"SymbolID": f_data.get("symbol_id", 0),
-					"Depth": f_data.get("depth", 0),
-					"X": f_data.get("x", 0.0),
-					"Y": f_data.get("y", 0.0),
-					"ScaleX": f_data.get("scale_x", 1.0),
-					"ScaleY": f_data.get("scale_y", 1.0),
-					"Rotation": f_data.get("rotation", 0.0),
-					"Visible": f_data.get("visible", true),
-					"TransformMatrix": f_data.get("transform_matrix", [])
-				})
-			sprite.frames.append(new_frame_dict)
-		sprite.frame_names = sp_data.get("frame_names", []).duplicate()
-		sprite.animations.clear()
-		for anim_name in sp_data.get("animations", {}).keys():
-			sprite.animations[anim_name] = sp_data["animations"][anim_name].duplicate()
-		sprite._build_animations()
-		player.sprites[id] = sprite
-		player.sprite_current_frames[id] = file.sprite_current_frames.get(id, 0)
-		player.sprite_current_animation[id] = ""
-		player.sprite_current_anim_frame[id] = 0
-
-func export_all_svgs(player : SWFPlayer):
-	if !DirAccess.dir_exists_absolute(svg_export_folder):
-		DirAccess.make_dir_absolute(svg_export_folder)
-	for shape_id in player.shapes.keys():
-		var shape : SWFClasses.SWFShape = player.shapes[shape_id]
-		#shape._generate_svg()
-		var svg_str = shape.to_svg()
-		if svg_str.is_empty():continue
-		var file_path = svg_export_folder + "/" + "%s.svg" % shape_id
-		var file = FileAccess.open(file_path, FileAccess.WRITE)
-		if file:
-			file.store_string(svg_str)
-			file.close()
-
+#region Json Stuff
+# -- Json import/ export
 func parse_json(data: Dictionary, player : SWFPlayer, smooth : int = 5) -> Array:
 	player.file_loaded_right = false
 	if data.is_empty():
 		printerr("JSON parse error")
 		return []
-		
+
 	player.shapes.clear()
 	player.sprites.clear()
 	player.sprite_current_frames.clear()
 	player.sprite_current_animation.clear()
 	player.sprite_current_anim_frame.clear()
+	
 	var returned_shapes : Array = []
 	if data.has("Shapes"):
 		for id in data["Shapes"].keys():
@@ -156,6 +35,7 @@ func parse_json(data: Dictionary, player : SWFPlayer, smooth : int = 5) -> Array
 				shape.texture = ImageTexture.create_from_image(image)
 			player.shapes[id] = shape
 			returned_shapes.append({shape = shape, id = id })
+
 	if data.has("Sprites"):
 		for id in data["Sprites"].keys():
 			var sprite = SWFClasses.SWFSprite.new(data["Sprites"][id])
@@ -170,16 +50,7 @@ func parse_json(data: Dictionary, player : SWFPlayer, smooth : int = 5) -> Array
 	player.file_loaded_right = true
 	return returned_shapes
 
-func _on_fallback_gen_toggled(toggled_on: bool) -> void:
-	use_fallback = toggled_on
-
-func _on_hole_detection_toggled(toggled_on: bool) -> void:
-	hollow_pieces = toggled_on
-
-func regen_shapes(player : SWFPlayer, smooth : int):
-	for sp in player.shapes.values():
-		sp.build_geometry(use_fallback, smooth, hollow_pieces)
-
+# todo : Proper export instead of direct raw data..
 func export_json_optimized(data : Dictionary = {}, file_name : String = ""):
 	if data.is_empty(): return
 	var json := JSON.stringify(data, "\t")
@@ -187,26 +58,25 @@ func export_json_optimized(data : Dictionary = {}, file_name : String = ""):
 	file.store_string(json)
 	file.close()
 
-func matrix_equals(a: Array, b: Array) -> bool:
-	if a.size() != b.size():
-		return false
-	for i in range(a.size()):
-		if abs(a[i] - b[i]) > 0.0001:
-			return false
-	return true
+#endregion
 
-#------Fancy lines, okay, no joke, i am very stuck, check the issue.png in the source to see why...
 
-func export_skelform(player: SWFPlayer, file_name: String = "", data : Dictionary = {}):
+#region SKF Export
+# SKF Export (Wip)
+# small notes, yes, .skf is very much a renamed ZIP file format. it contains two main files, the image atlas (atlas{x}.png) and armature.json
+func export_skelform(player: SWFPlayer, file_name: String = "", _data : Dictionary = {}):
 	if player == null:
 		push_error("Player is null")
 		return
 	var zip := ZIPPacker.new()
 	var path := skf_export_folder + "/" + file_name + ".skf"
 	print("EXPORT PATH:", path)
+	
 	if zip.open(path) != OK:
 		push_error("Failed to create SKF")
 		return
+	
+	# basic armature.json data structure
 	var armature := {
 		"version": "0.2.0",
 		"ik_root_ids": [],
@@ -219,11 +89,14 @@ func export_skelform(player: SWFPlayer, file_name: String = "", data : Dictionar
 	armature["styles"].append(atlas_data["style"])
 	armature["atlases"].append(atlas_data["atlas_info"])
 
+	# checks if the player has a root sprite.
 	if !player.sprites.has(0):
 		push_error("Sprite 0 missing")
 		zip.close()
 		return
 	var bones_list = []
+	
+	# adds root bone
 	var root_bone = {
 		"id": 0,
 		"parent_id": -1,
@@ -237,13 +110,14 @@ func export_skelform(player: SWFPlayer, file_name: String = "", data : Dictionar
 	}
 	bones_list.append(root_bone)
 	
-	var symbol_to_bone : Dictionary = {}
-	build_bones_recursive(player, 0, 0, bones_list, symbol_to_bone)
+	var _symbol_to_bone : Dictionary = {}
+	build_bones_recursive(player, 0, 0, bones_list, _symbol_to_bone)
 	
-	#build_bones_recursive_old(player, 0, 0, bones_list)
+	# build animations for the skf export, i am very brain fried, this code is such a headache.
 	armature["bones"] = bones_list
 	var animations_list = build_animations(player, player.animated_sprite_id, bones_list)
 	armature["animations"] = animations_list
+	
 	var json_data := JSON.stringify(armature, "\t")
 	zip.start_file("armature.json")
 	zip.write_file(json_data.to_utf8_buffer())
@@ -252,52 +126,20 @@ func export_skelform(player: SWFPlayer, file_name: String = "", data : Dictionar
 	zip.write_file(atlas_data["image"].save_png_to_buffer())
 	zip.close_file()
 	zip.close()
+	
 	print("SKF export complete:", path)
-
-func build_bones_recursive_old(player: SWFPlayer, sprite_id: int, parent_bone_idx: int, bones_list: Array):
-	if !player.sprites.has(sprite_id):
-		return
-	var sprite : SWFClasses.SWFSprite = player.sprites[sprite_id]
-	if sprite.frames.size() == 0:
-		return
-	var frame_dict = sprite.frames[0]
-	var depths = frame_dict.keys()
-	depths.sort()
-	for depth in depths:
-		var ft = frame_dict[depth]
-		
-		var my_bone_idx = bones_list.size()
-		var local_pos = Vector2(ft.x, -ft.y)
-		var tex_name = ""
-		if player.shapes.has(ft.symbol_id):
-			tex_name = "shape_%d" % ft.symbol_id
-			local_pos.x -= get_local_shape(player, ft).x
-			local_pos.y = get_local_shape(player, ft).y
-
-		var bone = {
-			"id": my_bone_idx,
-			"parent_id": parent_bone_idx,
-			"name": "symbol_%d" % ft.symbol_id,
-			"pos": {"x": local_pos.x, "y": local_pos.y},
-			"scale": {"x": ft.scale_x, "y": ft.scale_y},
-			"rot": deg_to_rad(ft.rotation),
-			"tex": tex_name,
-			"zindex": depth,
-			"ik_family_id": -1,
-		}
-		bones_list.append(bone)
-		
-		if player.sprites.has(ft.symbol_id):
-			build_bones_recursive_old(player, ft.symbol_id, my_bone_idx, bones_list)
 
 func build_animations(player: SWFPlayer, root_sprite_id: int, bones_list: Array) -> Array:
 	var animations_list = []
+	# check the player's main root sprite, since at least with the style of swf i am working with. 
+	# it is mainly a standalone character rig where a root sprite usually holds all the animation data. 
 	if !player.sprites.has(root_sprite_id):
 		return animations_list
-	
+
 	var root_sprite : SWFClasses.SWFSprite = player.sprites[root_sprite_id]
 	var symbol_to_bones_map = {}
-	
+
+	# checks the symbols and if their id/ data is valid.
 	for b in bones_list:
 		if b.name.begins_with("symbol_"):
 			var parts = b.name.split("_")
@@ -305,100 +147,117 @@ func build_animations(player: SWFPlayer, root_sprite_id: int, bones_list: Array)
 			if !symbol_to_bones_map.has(sym_id):
 				symbol_to_bones_map[sym_id] = []
 			symbol_to_bones_map[sym_id].append(b.id)
-	
+
+	# loops through the global animations of the character swf rig
 	var anim_names = root_sprite.animations.keys()
 	for anim_id in range(anim_names.size()):
 		var anim_name = anim_names[anim_id]
-		var anim = {"name": anim_name, "id": anim_id, "fps": player.fps, "keyframes": []}
 		var frame_indices = root_sprite.animations[anim_name]
 		if frame_indices.is_empty():
 			continue
-		
+
+		var anim = {"name": anim_name, "id": anim_id, "fps": player.fps, "keyframes": []}
+
+		var last_values = {}
+		# creates placeholder data for the bones and stores them in the last_values dictionary
+		for b in bones_list:
+			last_values[b.id] = {
+				"PositionX": 0.0,
+				"PositionY": 0.0,
+				"Rotation": 0.0,
+				"ScaleX": 1.0,
+				"ScaleY": 1.0,
+				"Zindex": 0,
+				"Hidden": 0.0
+			}
+
 		var frame_offset = frame_indices[0]
 		for f_idx in frame_indices:
 			var local_frame = f_idx - frame_offset
 			if local_frame < 0 or f_idx >= root_sprite.frames.size():
 				continue
-			
+
 			var frame_data = root_sprite.frames[f_idx]
-			var depths = frame_data.keys()
-			for depth in depths:
-				var ft = frame_data[depth]
+			var frames = frame_data.keys()
+
+			#loops through the frames of the current selected animation.
+			for current_frame in frames:
+				var ft = frame_data[current_frame]
 				var target_bone_ids = symbol_to_bones_map.get(ft.symbol_id, [])
 				
+				# check visibility, for some reason skf uses floats instead of bools?
+				var hidden_val = 0.0
+				if !ft.visible:
+					hidden_val = 1.0
+
+				# apply transformation matrix for keyframe movement
 				for bone_id in target_bone_ids:
 					var local_pos = Vector2(ft.local_x, ft.local_y)
-					var visib = 0.0
-					if !ft.visible:
-						visib = 1.0
-					anim["keyframes"].append({
-						"frame": local_frame,
-						"bone_id": bone_id,
-						"element": 0,
-						"element_str": "PositionX",
-						"value": local_pos.x,
-						"transition": "Linear"
-					})
-					anim["keyframes"].append({
-						"frame": local_frame,
-						"bone_id": bone_id,
-						"element": 1,
-						"element_str": "PositionY",
-						"value": local_pos.y,
-						"transition": "Linear"
-					})
-					anim["keyframes"].append({
-						"frame": local_frame,
-						"bone_id": bone_id,
-						"element": 2,
-						"element_str": "Rotation",
-						"value": deg_to_rad(ft.rotation),
-						"transition": "Linear"
-					})
-					anim["keyframes"].append({
-						"frame": local_frame,
-						"bone_id": bone_id,
-						"element": 3,
-						"element_str": "ScaleX",
-						"value": ft.scale_x,
-						"transition": "Linear"
-					})
-					anim["keyframes"].append({
-						"frame": local_frame,
-						"bone_id": bone_id,
-						"element": 4,
-						"element_str": "ScaleY",
-						"value": ft.scale_y,
-						"transition": "Linear"
-					})
-					anim["keyframes"].append({
-						"frame": local_frame,
-						"bone_id": bone_id,
-						"element": 8,
-						"element_str": "Hidden",
-						"value": visib,
-						"transition": "Linear"
-					})
+					var local_transform : Transform2D = Transform2D.IDENTITY
+					local_transform = local_transform.scaled(Vector2(ft.scale_x, ft.scale_y))
+					local_transform = local_transform.rotated(deg_to_rad(ft.rotation))
+					local_transform = local_transform.translated(local_pos)
+
+					# create "psuedo data" for the check between current and previous frame.
+					var current_values = {
+						"PositionX": local_transform.get_origin().x,
+						"PositionY": local_transform.get_origin().y,
+						"Rotation": local_transform.get_rotation(),
+						"ScaleX": local_transform.get_scale().x,
+						"ScaleY": local_transform.get_scale().y,
+						"Zindex": ft.depth,
+						"Hidden": hidden_val
+						}
+
+					for element_str in current_values.keys():
+						var val = current_values[element_str]
+						# check if data (PositionX for example) changed between current and previous frame.
+						if last_values[bone_id][element_str] == val:
+							continue
+
+						last_values[bone_id][element_str] = val
+						
+						# get the currently changed element_index based off the element string/ element name (PositionX, Rotation, etc..)
+						var element_index = match_element_keyframe(element_str)
+						anim["keyframes"].append({
+							"frame": local_frame,
+							"bone_id": bone_id,
+							"element": element_index,
+							"element_str": element_str,
+							"value": val,
+							"transition": "Linear"
+						})
+
 		animations_list.append(anim)
 
 	# flip ScaleY for frames where rotation is beyond 90 deg
 	# todo: make this a toggle, as not all SWFs may flip like this
-	# todo: handle roundabouts
+	# todo: handle roundabouts (Partially fixed?)
 	for anim in animations_list:
-		for k in range(len(anim["keyframes"])):
+		var flip_state = {}
+		var prev_rot = {}
+		for k in range(anim["keyframes"].size()):
 			var kf = anim["keyframes"][k]
-			if not (kf.element == 2 and abs(kf.value) > 1.571):
+			var key = str(kf.bone_id) + "_" + str(kf.frame)
+
+			if kf.element == 2: # Rotation
+				var bone_id = kf.bone_id
+				var rot = kf.value
+				if prev_rot.has(bone_id):
+					var delta = calculate_shortest_angle(prev_rot[bone_id], rot)
+					rot = prev_rot[bone_id] + delta
+				kf.value = rot
+				prev_rot[bone_id] = rot
+				flip_state[key] = abs(rot) > PI * 0.5
 				continue
-			# find existing ScaleX frame and override its value
-			# todo: add fallback to create scale frames if it doesn't exist
-			for k2 in range(len(anim["keyframes"])):
-				var kf2 = anim["keyframes"][k2]
-				if kf2.frame == kf.frame and kf2.element == 4 and kf2.bone_id == kf.bone_id:
-					anim["keyframes"][k2].value = -kf2.value
+
+			if kf.element == 4 and flip_state.get(key, false): # ScaleY
+				kf.value = -kf.value
+
 	return animations_list
 
-
 # Builds the texture atlas for the Skelform export.
+# todo: more accurate resolution instead of a resized bone in the skf export. should help with the weird resolution issue?
 func create_texture_atlas(player: SWFPlayer) -> Dictionary:
 	var atlas_img : Image = Image.create(2048, 2048, false, Image.FORMAT_RGBA8)
 	atlas_img.fill(Color(0,0,0,0))
@@ -454,76 +313,70 @@ func create_texture_atlas(player: SWFPlayer) -> Dictionary:
 		"texture_map": texture_map}
 
 # TEST-AREA
-
 # ---- More fancy line! Wip, a proper way to export all sprites/ shapes to skf. Partially works, placements and visibility are broken..
-# ---- No joke, if you are looking at this and can help, could you? i am not good with recursive stuff lol.
+# ---- Tiny update, now all sprites/ shapes load, but they aren't animated correctly
 
-func build_bones_recursive(player: SWFPlayer, sprite_id: int, parent_bone_idx: int, bones_list: Array, symbol_to_bone: Dictionary):
-	if !player.sprites.has(sprite_id): return
-	var sprite: SWFClasses.SWFSprite = player.sprites[sprite_id]
-	
-	# loops through the children of the current selected sprite
-	for child in sprite.children:
-		var sym_id = child.id
-		if symbol_to_bone.has(sym_id):
-			continue
-	
-		# adds the sprite/ object to the list of seen bones
-		var bone_id = bones_list.size()
-		symbol_to_bone[sym_id] = bone_id
-	
-		var tex_name = ""
-		var local_pos = Vector2.ZERO
-		var scale = Vector2(1,1)
-		var rotation = 0.0
-		var zindex = 0
-		var is_hidden = false
-		var first_ft = null
-		
-		# loops through each frame of the sprite's frames data, check the SWFClasses for how the data looks.
-		for frame_dict in sprite.frames:
-			for depth in frame_dict.keys():
-				var ft = frame_dict[depth]
-				if ft.symbol_id == sym_id:
-					first_ft = ft
-					zindex = depth
-					break
-			if first_ft != null:
-				break
-		
-		# checks if the frame data is valid, if so, it sets the position, rotation, scale and visible data from that frame.
-		if first_ft != null:
-			local_pos = Vector2(first_ft.local_x, first_ft.local_y)
-			scale = Vector2(first_ft.scale_x, first_ft.scale_y)
-			rotation = deg_to_rad(first_ft.rotation)
-			is_hidden = !first_ft.visible
-		
-		# since Skelform doesn't have proper pivot points, this code ensures that the bone that uses a texture is correctly placed/ centered.
-		# rotation and scale are not required.
-		if player.shapes.has(sym_id):
-			tex_name = "shape_%d" % sym_id
-			local_pos = get_local_shape(player, first_ft)
-		
-		# builds the bone based off the current selected sprite
-		var bone = {
-			"id": bone_id,
-			"parent_id": parent_bone_idx,
-			"name": "symbol_%d" % sym_id,
-			"pos": {"x": local_pos.x, "y": local_pos.y},
-			"scale": {"x": scale.x, "y": scale.y},
-			"rot": rotation,
-			"tex": tex_name,
-			"zindex": zindex,
-			"ik_family_id": -1,
-			"is_hidden": is_hidden
-		}
-		bones_list.append(bone)
-		
-		# goes through the rest of the sprites in the player.
-		if player.sprites.has(sym_id):
-			build_bones_recursive(player, sym_id, bone_id, bones_list, symbol_to_bone)
+func build_bones_recursive(player: SWFPlayer, sprite_id: int, parent_bone_idx: int, bones_list: Array, symbol_to_bone : Dictionary = {}):
+	if !player.sprites.has(sprite_id):
+		return
 
-# -- Helper i guess
+	var sprite : SWFClasses.SWFSprite = player.sprites[sprite_id]
+	if sprite.frames.size() == 0:
+		return
+	
+	# loop through all sprite's frames
+	for h in sprite.frames.size():
+		var frame_dict = sprite.frames[h]
+		
+		var frames = frame_dict.keys()
+
+		for current_frame in frames:
+			var ft = frame_dict[current_frame]
+			
+			# check if data was seen before to prevent dupes
+			var hhh = str(parent_bone_idx) + "_" + str(sprite_id) + "_" + str(ft.symbol_id) + "_" + str(current_frame)
+			if symbol_to_bone.has(hhh):
+				continue
+
+			# basic bone data
+			var bone_idx = bones_list.size()
+			var local_pos = Vector2(ft.x, -ft.y)
+			var local_transform : Transform2D = Transform2D.IDENTITY
+			var tex_name = ""
+			
+			if player.shapes.has(ft.symbol_id):
+				tex_name = "shape_%d" % ft.symbol_id
+				local_pos = get_local_shape(player, ft)
+			
+			#applying transformation
+			local_transform = local_transform.scaled(Vector2(ft.scale_x, ft.scale_y))
+			local_transform = local_transform.rotated(deg_to_rad(ft.rotation))
+			local_transform = local_transform.translated(local_pos)
+
+			# Create a very basic bone
+			var bone = {
+				"id": bone_idx,
+				"parent_id": parent_bone_idx,
+				"name": "symbol_%d" % ft.symbol_id,
+				"pos": {"x": local_transform.get_origin().x, "y": local_transform.get_origin().y},
+				"scale": {"x": local_transform.get_scale().x, "y": local_transform.get_scale().y},
+				"rot": local_transform.get_rotation(),
+				"tex": tex_name,
+				"zindex": ft.depth, # z-index is named depth in the SWFClasses.SWFFrame
+				"ik_family_id": -1,
+			}
+			
+			# Add bone to array
+			bones_list.append(bone)
+			
+			var key = str(parent_bone_idx) + "_" + str(sprite_id) + "_" + str(ft.symbol_id) + "_" + str(current_frame)
+			symbol_to_bone[key] = bone_idx
+			
+			# Recruse through the rest of the bones
+			if player.sprites.has(ft.symbol_id):
+				build_bones_recursive(player, ft.symbol_id, bone_idx, bones_list, symbol_to_bone)
+
+# -- Helper 
 func get_local_shape(player, ft):
 	if ft == null or !is_instance_valid(ft): return Vector2.ZERO
 	var shape = player.shapes.get(ft.symbol_id)
@@ -544,3 +397,58 @@ func get_local_shape(player, ft):
 	# flip Y, since swf is -Y while skf is +Y
 	local_pos.y = -local_pos.y
 	return local_pos
+
+func calculate_shortest_angle(from, to) -> float :
+	var delta = to - from 
+	delta = fposmod(delta - PI, TAU) - PI
+	return delta
+
+# returns the matched keyframe type, since again.. skf seems to have two checks??
+func match_element_keyframe(element_str) -> int:
+	var element_index : int = 0
+	match element_str:
+		"PositionX":
+			element_index = 0
+		"PositionY":
+			element_index = 1
+		"Rotation":
+			element_index = 2
+		"ScaleX":
+			element_index = 3
+		"ScaleY":
+			element_index = 4
+		"Zindex":
+			element_index = 5
+		"Hidden":
+			element_index = 8
+	return element_index
+
+#endregion
+
+
+#region Misc import/ export
+func export_all_svgs(player : SWFPlayer):
+	if !DirAccess.dir_exists_absolute(svg_export_folder):
+		DirAccess.make_dir_absolute(svg_export_folder)
+	for shape_id in player.shapes.keys():
+		var shape : SWFClasses.SWFShape = player.shapes[shape_id]
+		#shape._generate_svg()
+		var svg_str = shape.to_svg()
+		if svg_str.is_empty():continue
+		var file_path = svg_export_folder + "/" + "%s.svg" % shape_id
+		var file = FileAccess.open(file_path, FileAccess.WRITE)
+		if file:
+			file.store_string(svg_str)
+			file.close()
+
+#endregion
+
+func _on_fallback_gen_toggled(toggled_on: bool) -> void:
+	use_fallback = toggled_on
+
+func _on_hole_detection_toggled(toggled_on: bool) -> void:
+	hollow_pieces = toggled_on
+
+func regen_shapes(player : SWFPlayer, smooth : int):
+	for sp in player.shapes.values():
+		sp.build_geometry(use_fallback, smooth, hollow_pieces)

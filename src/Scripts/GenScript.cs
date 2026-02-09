@@ -10,6 +10,7 @@ using SwfLib.Data;
 using SwfLib.Tags.DisplayListTags;
 using SwfLib.Tags.ControlTags;
 using System.Text.Json;
+using System.IO;
 
 
 public partial class GenScript : Node
@@ -23,7 +24,17 @@ public partial class GenScript : Node
     public Godot.Collections.Dictionary LoadSwf(string path, bool baked_data = true)
     {
         using var file = System.IO.File.OpenRead(path);
-        swfFile = SwfFile.ReadFrom(file);
+
+        try
+        {
+            swfFile = SwfFile.ReadFrom(file);
+        }
+        catch (EndOfStreamException e)
+        {
+            GD.PrintErr($"Failed to read SWF: {e.Message}");
+            return new Godot.Collections.Dictionary();
+        }
+
 
         BuildDefinitionDictionaries();
 
@@ -42,7 +53,8 @@ public partial class GenScript : Node
         foreach (var kvp in spriteDict)
         {
             if (kvp.Key == 0) continue;
-            exportDoc.Sprites[kvp.Key] = ProcessTimeline(kvp.Value.Tags, baked_data);
+            var spriteTag = kvp.Value;
+            exportDoc.Sprites[kvp.Key] = ProcessTimeline(spriteTag.Tags, baked_data);
         }
 
         var dict = ExportDocumentToDictionary(exportDoc);

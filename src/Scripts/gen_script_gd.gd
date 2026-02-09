@@ -12,7 +12,7 @@ enum ExportType {
 
 var last_path : String = ""
 var baked_data : bool = true
-var loaded_data : Dictionary = {}
+var loaded_data : Dictionary
 var loaded_swf_name : String = ""
 var current_export_type : ExportType = ExportType.Normal
 var zoom_trigger : bool = false
@@ -71,6 +71,7 @@ func load_path(path : String = ""):
 	loaded_data = gen.LoadSwf(path, baked_data)
 	#var stage_size = loaded_data.get("SceneSize", { "Width": 300, "Height": 300 })
 	#%GenExport.stage_size = Vector2(stage_size["Width"], stage_size["Height"])
+	
 	if loaded_data.is_empty(): return
 	last_path = path
 	loaded_swf_name = path.get_basename().get_file()
