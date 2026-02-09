@@ -160,3 +160,16 @@ func load_gdwf(file: GDWFResource, player : SWFPlayer) -> void:
 		player.sprite_current_anim_frame[id] = 0
 
 '''
+
+#"PositionX":element_index = 0
+#"PositionY":element_index = 1
+#"Rotation":element_index = 2
+#"ScaleX":element_index = 3
+#"ScaleY":element_index = 4
+#"Zindex":element_index = 5
+#"Texture":element_index = 6
+#"Hidden":element_index = 8
+#"TintR":element_index = 11
+#"TintG":element_index = 12
+#"TintB":element_index = 13
+#"TintA":element_index = 14

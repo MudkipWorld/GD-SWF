@@ -62,6 +62,7 @@ func export_json_optimized(data : Dictionary = {}, file_name : String = ""):
 
 
 #region SKF Export
+
 # SKF Export (Wip)
 # small notes, yes, .skf is very much a renamed ZIP file format. it contains two main files, the image atlas (atlas{x}.png) and armature.json
 func export_skelform(player: SWFPlayer, file_name: String = "", _data : Dictionary = {}):
@@ -256,66 +257,6 @@ func build_animations(player: SWFPlayer, root_sprite_id: int, bones_list: Array)
 
 	return animations_list
 
-# Builds the texture atlas for the Skelform export.
-# todo: more accurate resolution instead of a resized bone in the skf export. should help with the weird resolution issue?
-func create_texture_atlas(player: SWFPlayer) -> Dictionary:
-	var atlas_img : Image = Image.create(2048, 2048, false, Image.FORMAT_RGBA8)
-	atlas_img.fill(Color(0,0,0,0))
-	
-	var style_textures : Array = []
-	var texture_map : Dictionary = {} 
-	var cursor : Vector2 = Vector2(0, 0)
-	var row_height : int = 0
-	
-	var shape_ids = player.shapes.keys()
-	
-	for sid in shape_ids:
-		var s : SWFClasses.SWFShape = player.shapes[sid]
-		
-		if s.svg_text.is_empty():
-			s.generate_svg()
-		
-		var img : Image = Image.new()
-		if s.svg_text.is_empty(): continue
-		var err = img.load_svg_from_string(s.svg_text)
-		
-		if err != OK or img.is_empty():
-			continue
-
-		if cursor.x + img.get_width() > atlas_img.get_width():
-			cursor.x = 0
-			cursor.y += row_height
-			row_height = 0
-		
-		atlas_img.blit_rect(img, Rect2(Vector2.ZERO, img.get_size()), cursor)
-		
-		var tex_info = {
-			"offset": Vector2(cursor.x, cursor.y),
-			"size": Vector2(img.get_width(), img.get_height())
-		}
-		texture_map[int(sid)] = tex_info
-		
-		style_textures.append({
-			"name": "shape_%d" % sid,
-			"offset": {"x": int(tex_info.offset.x), "y": int(tex_info.offset.y)},
-			"size": {"x": int(tex_info.size.x), "y": int(tex_info.size.y)},
-			"atlas_idx": 0
-		})
-		
-		cursor.x += img.get_width()
-		row_height = max(row_height, img.get_height())
-
-	
-	return {
-		"image": atlas_img,
-		"style": {"name": "Default", "textures": style_textures},
-		"atlas_info": {"filename": "atlas0.png", "size": {"x": atlas_img.get_width(), "y": atlas_img.get_height()}},
-		"texture_map": texture_map}
-
-# TEST-AREA
-# ---- More fancy line! Wip, a proper way to export all sprites/ shapes to skf. Partially works, placements and visibility are broken..
-# ---- Tiny update, now all sprites/ shapes load, but they aren't animated correctly
-
 func build_bones_recursive(player: SWFPlayer, sprite_id: int, parent_bone_idx: int, bones_list: Array, symbol_to_bone : Dictionary = {}):
 	if !player.sprites.has(sprite_id):
 		return
@@ -419,12 +360,78 @@ func match_element_keyframe(element_str) -> int:
 			element_index = 4
 		"Zindex":
 			element_index = 5
+		"Texture":
+			element_index = 6
 		"Hidden":
 			element_index = 8
+		"TintR":
+			element_index = 11
+		"TintG":
+			element_index = 12
+		"TintB":
+			element_index = 13
+		"TintA":
+			element_index = 14
 	return element_index
 
-#endregion
+# -- Misc functions
+# Builds the texture atlas for the Skelform export.
+# todo: more accurate resolution instead of a resized bone in the skf export. should help with the weird resolution issue?
+func create_texture_atlas(player: SWFPlayer) -> Dictionary:
+	var atlas_img : Image = Image.create(2048, 2048, false, Image.FORMAT_RGBA8)
+	atlas_img.fill(Color(0,0,0,0))
+	
+	var style_textures : Array = []
+	var texture_map : Dictionary = {} 
+	var cursor : Vector2 = Vector2(0, 0)
+	var row_height : int = 0
+	
+	var shape_ids = player.shapes.keys()
+	
+	for sid in shape_ids:
+		var s : SWFClasses.SWFShape = player.shapes[sid]
+		
+		if s.svg_text.is_empty():
+			s.generate_svg()
+		
+		var img : Image = Image.new()
+		if s.svg_text.is_empty(): continue
+		var err = img.load_svg_from_string(s.svg_text)
+		
+		if err != OK or img.is_empty():
+			continue
 
+		if cursor.x + img.get_width() > atlas_img.get_width():
+			cursor.x = 0
+			cursor.y += row_height
+			row_height = 0
+		
+		atlas_img.blit_rect(img, Rect2(Vector2.ZERO, img.get_size()), cursor)
+		
+		var tex_info = {
+			"offset": Vector2(cursor.x, cursor.y),
+			"size": Vector2(img.get_width(), img.get_height())
+		}
+		texture_map[int(sid)] = tex_info
+		
+		style_textures.append({
+			"name": "shape_%d" % sid,
+			"offset": {"x": int(tex_info.offset.x), "y": int(tex_info.offset.y)},
+			"size": {"x": int(tex_info.size.x), "y": int(tex_info.size.y)},
+			"atlas_idx": 0
+		})
+		
+		cursor.x += img.get_width()
+		row_height = max(row_height, img.get_height())
+
+	
+	return {
+		"image": atlas_img,
+		"style": {"name": "Default", "textures": style_textures},
+		"atlas_info": {"filename": "atlas0.png", "size": {"x": atlas_img.get_width(), "y": atlas_img.get_height()}},
+		"texture_map": texture_map}
+
+#endregion
 
 #region Misc import/ export
 func export_all_svgs(player : SWFPlayer):
