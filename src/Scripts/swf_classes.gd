@@ -22,6 +22,8 @@ class SWFFrame:
 	var local_x: float = 0.0
 	var local_y: float = 0.0
 	var alpha : float = 1.0
+	var color: Color = Color(1, 1, 1, 1) 
+
 	func _init(data : Dictionary):
 		symbol_id = data.get("SymbolID", 0)
 		depth = data.get("Depth", 0)
@@ -36,6 +38,10 @@ class SWFFrame:
 		local_y = data.get("LocalY", 0)
 		visible = data.get("Visible", true)
 		is_dirty = true
+		var test = data.get("EffectiveColor",  Color(1, 1, 1, 1) )
+		#print(test)
+		color = test
+		
 		if data.has("TransformMatrix"):
 			transform_matrix = data["TransformMatrix"]
 
@@ -82,27 +88,28 @@ class SWFShape:
 	# I think this is one of the most complex json get data i ever made lmao
 	func get_data() -> Dictionary:
 		var dat : Dictionary = {
-			"subpaths" : [],
-			"offset" : { "x" : offset.x, "y" : offset.y},
-			"size" : { "x" : size.x, "y" : size.y},
-			"svg_text" : svg_text,
+			"Subpaths" : [],
+			"Offset" : { "x" : offset.x, "y" : offset.y},
+			"Size" : { "x" : size.x, "y" : size.y},
+			"Svg_text" : svg_text,
 		}
 		
 		for i in subpaths:
 			var dt : Dictionary = {
-				"segments": i["segments"],
-				"lines": [],
-				"polygons": [],
-				"triangles": {"points": [], "indices": []},
-				"color": {"r": 1.0, "g": 1.0, "b": 1.0, "a" : 1.0}
+				"Segments": i["segments"],
+				"Lines": [],
+				"Polygons": [],
+				"Triangles": {"Points": [], "Indices": []},
+				"Color": {"R": 1.0, "G": 1.0, "B": 1.0, "A" : 1.0}
 			}
 			
 			for l in i["lines"]:
-				dt["lines"].append({
-					"type": l["type"],
-					"start": l["start"],
-					"end": l["end"],
-					"control":  { "x" : l["control"].x, "y" : l["control"].y}
+				dt["Lines"].append({
+					
+					"Type": l["type"],
+					"Start": { "x" : l["start"].x, "y" : l["start"].y},
+					"End": { "x" : l["end"].x, "y" : l["end"].y},
+					"Control":  { "x" : l["control"].x, "y" : l["control"].y}
 					
 				})
 				
@@ -111,13 +118,15 @@ class SWFShape:
 				for pl in ply:
 					poly.append({ "x" : pl.x, "y" : pl.y})
 				
-				dt["polygons"].append(poly)
+				dt["Polygons"].append(poly)
 			
 			for p in i["triangles"]["points"]:
-				dt["triangles"]["points"].append({ "x" : p.x, "y" : p.y})
+				dt["Triangles"]["Points"].append({ "x" : p.x, "y" : p.y})
 			
 			for p in i["triangles"]["indices"]:
-				dt["triangles"]["indices"].append(p)
+				dt["Triangles"]["Indices"].append(p)
+			
+			dat["Subpaths"].append(dt)
 
 		return dat
 
@@ -707,15 +716,15 @@ class SWFSprite:
 
 	func get_data() -> Dictionary:
 		var dat : Dictionary = {
-			"max_depth" : max_nesting_depth,
-			"frames" : [],
-			"animations" : animations,
-			"children" : [],
+			"MaxDepth" : max_nesting_depth,
+			"Frames" : [],
+			"Animations" : animations,
+			"Children" : [],
 		}
 		for ch in children:
-			dat["children"].append({
-				"id" : ch.id,
-				"type" : ch.type
+			dat["Children"].append({
+				"ID" : ch.id,
+				"Type" : ch.type
 			})
 		
 		for frame in frames:
@@ -723,22 +732,24 @@ class SWFSprite:
 			for fd in frame.keys():
 				var f = frame[fd]
 				frame_data[fd] = {
-					"symbol_id" : f.symbol_id,
-					"x" : f.x,
-					"y" : f.y,
-					"scale_x" : f.scale_x,
-					"scale_y" : f.scale_y,
+					"SymbolID" : f.symbol_id,
+					"X" : f.x,
+					"Y" : f.y,
+					"ScaleX" : f.scale_x,
+					"ScaleY" : f.scale_y,
 					
-					"rotation" : f.rotation,
-					"transform_matrix" : f.transform_matrix,
-					"visible" : f.visible,
-					"alpha" : f.alpha,
+					"Rotation" : f.rotation,
+					"TransformMatrix" : f.transform_matrix,
+					"Visible" : f.visible,
+					"Alpha" : f.alpha,
 					
-					"local_x" : f.local_x,
-					"local_y" : f.local_y,
+					"LocalX" : f.local_x,
+					"LocalY" : f.local_y,
 					
-					"is_dirty" : f.is_dirty
+					"IsDirty" : f.is_dirty,
+					"Color" : {"R": f.color.r, "G": f.color.g, "B": f.color.b, "A" : f.color.a}
+					
 				}
-			dat["frames"].append(frame_data)
+			dat["Frames"].append(frame_data)
 		
 		return dat

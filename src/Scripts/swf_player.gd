@@ -87,9 +87,10 @@ func compute_local_positions(sprite_id: int, parent_transform: Transform2D = Tra
 			var t = Transform2D.IDENTITY.translated(Vector2(sprite.local_x, sprite.local_y))
 			compute_local_positions(child.id, parent_transform * t)
 
-func draw_sprite_recursive(sprite_id, parent_transform: Transform2D):
+func draw_sprite_recursive(sprite_id, parent_transform: Transform2D, parent_color: Color = Color(1,1,1,1)):
 	if !sprites.has(sprite_id):
 		return
+
 	var sprite : SWFClasses.SWFSprite = sprites[sprite_id]
 	var frame_index = sprite_current_frames[sprite_id]
 	if frame_index >= sprite.frames.size():
@@ -97,10 +98,12 @@ func draw_sprite_recursive(sprite_id, parent_transform: Transform2D):
 	var frame_dict = sprite.frames[frame_index]
 	var frame_items = frame_dict.values()
 	frame_items.sort_custom(sort_frames)
-	for item in frame_items:
-		var ft : SWFClasses.SWFFrame = item
+
+	for ft in frame_items:
 		if !ft.visible:
 			continue
+
+		# Compute final transform
 		var final_transform : Transform2D
 		if ft.transform_matrix.size() == 6:
 			var m = ft.transform_matrix
@@ -111,10 +114,40 @@ func draw_sprite_recursive(sprite_id, parent_transform: Transform2D):
 			local = local.rotated(-deg_to_rad(ft.rotation))
 			local = local.translated(Vector2(ft.x, ft.y))
 			final_transform = parent_transform * local
+
+		# Combine parent color with frame color
+		var combined_color = ft.color * parent_color
+
+
 		if shapes.has(ft.symbol_id):
-			draw_shape(shapes[ft.symbol_id], final_transform)
+			draw_shape(shapes[ft.symbol_id], final_transform, combined_color)
 		elif sprites.has(ft.symbol_id):
-			draw_sprite_recursive(ft.symbol_id, final_transform)
+			draw_sprite_recursive(ft.symbol_id, final_transform, combined_color)
+
+func draw_shape(shape: SWFClasses.SWFShape, _transform: Transform2D, frame_color: Color):
+	if shape.subpaths.is_empty():
+		return
+
+	draw_set_transform_matrix(_transform)
+
+	for sp in shape.subpaths:
+		if draw_debug_mode:
+			for line in sp["lines"]:
+				var color = sp["color"] * frame_color
+				if line["type"] == "line":
+					draw_line(line["start"], line["end"], color, 1)
+				elif line["type"] == "curve":
+					draw_curve(line["start"], line["control"], line["end"], color)
+		else:
+			if sp["triangles"].has("points") and sp["triangles"].has("indices"):
+				var points: PackedVector2Array = sp["triangles"]["points"]
+				var indices: PackedInt32Array = sp["triangles"]["indices"]
+				var colors: PackedColorArray = PackedColorArray()
+				for i in range(points.size()):
+					var final = frame_color * sp["color"]
+					colors.append(final)
+				if indices.is_empty() or points.is_empty(): continue
+				RenderingServer.canvas_item_add_triangle_array(get_canvas_item(), indices, points, colors)
 
 func frame_to_transform(ft):
 	if ft.transform_matrix.size() == 6:
@@ -193,28 +226,6 @@ func center_model():
 
 	var center = (min_pt + max_pt) * 0.5
 	model_placement = -center
-
-func draw_shape(shape: SWFClasses.SWFShape, _transform: Transform2D):
-	if shape.subpaths.is_empty():
-		return
-	draw_set_transform_matrix(_transform)
-	for sp in shape.subpaths:
-		# debug lines
-		if draw_debug_mode:
-			for line in sp["lines"]:
-				if line["type"] == "line":
-					draw_line(line["start"], line["end"], sp["color"], 1)
-				elif line["type"] == "curve":
-					draw_curve(line["start"], line["control"], line["end"], sp["color"])
-		else:
-			if sp["triangles"].has("points") and sp["triangles"].has("indices"):
-				var points: PackedVector2Array = sp["triangles"]["points"]
-				var indices: PackedInt32Array = sp["triangles"]["indices"]
-				var colors: PackedColorArray = PackedColorArray()
-				for i in range(points.size()):
-					colors.append(sp["color"])
-				if indices.is_empty() or points.is_empty(): continue
-				RenderingServer.canvas_item_add_triangle_array(get_canvas_item(),indices,points,colors)
 
 func draw_curve(start_pt: Vector2, control_pt: Vector2, end_pt: Vector2, color: Color, steps := 10):
 	var prev = start_pt

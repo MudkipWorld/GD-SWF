@@ -228,6 +228,11 @@ value = 24.0
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
+theme_override_colors/relationship_line_color = Color(0.646029, 0.646029, 0.646029, 1)
+theme_override_colors/parent_hl_line_color = Color(0.64705884, 0.64705884, 0.64705884, 1)
+theme_override_colors/children_hl_line_color = Color(0.64705884, 0.64705884, 0.64705884, 1)
+theme_override_constants/draw_guides = 2
+theme_override_constants/draw_relationship_lines = 2
 allow_reselect = true
 
 [node name="Control" type="Control" parent="VBox/HBox" unique_id=1571860998]

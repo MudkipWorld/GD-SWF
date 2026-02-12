@@ -50,23 +50,23 @@ func parse_json(data: Dictionary, player : SWFPlayer, smooth : int = 5) -> Array
 	player.file_loaded_right = true
 	return returned_shapes
 
-# todo : Proper export instead of direct raw data..
+# Done!
 func export_json_optimized(player : SWFPlayer = null, file_name : String = ""):
 	if !player: return
 	
 	var main_structure : Dictionary = {
-		"sprites" : {},
-		"shapes" : {},
-		"animated_sprite_id" : player.animated_sprite_id,
-		"model_placement" : {x = player.model_placement.x, y = player.model_placement.y},
-		"fps" : player.fps,
+		"Sprites" : {},
+		"Shapes" : {},
+		"AnimatedSpriteID" : player.animated_sprite_id,
+		"ModelPlacement" : {x = player.model_placement.x, y = player.model_placement.y},
+		"FPS" : player.fps,
 	}
 
 	for sp in player.sprites.keys():
-		main_structure["sprites"][sp] = player.sprites[sp].get_data()
+		main_structure["Sprites"][sp] = player.sprites[sp].get_data()
 		
 	for sh in player.shapes.keys():
-		main_structure["sprites"][sh] = player.shapes[sh].get_data()
+		main_structure["Shapes"][sh] = player.shapes[sh].get_data()
 
 	var json := JSON.stringify(main_structure, "\t")
 	var file := FileAccess.open(json_export_folder + "/" + file_name + ".json", FileAccess.WRITE)
@@ -74,7 +74,6 @@ func export_json_optimized(player : SWFPlayer = null, file_name : String = ""):
 	file.close()
 
 #endregion
-
 
 #region SKF Export
 
@@ -284,7 +283,6 @@ func build_animations(player: SWFPlayer, root_sprite_id: int, bones_list: Array)
 				kf.value = -kf.value
 
 	return animations_list
-
 
 func build_bones_recursive(player: SWFPlayer, sprite_id: int, parent_bone_idx: int, bones_list: Array, symbol_to_bone : Dictionary = {}):
 	if !player.sprites.has(sprite_id):

@@ -72,153 +72,150 @@ public partial class GenScript : Node
     }
 
 
-    private Godot.Collections.Dictionary ExportDocumentToDictionary(ExportDocument doc)
+private Godot.Collections.Dictionary ExportDocumentToDictionary(ExportDocument doc)
+{
+    var root = new Godot.Collections.Dictionary();
+
+    var shapes = new Godot.Collections.Dictionary();
+    foreach (var shapeKvp in doc.Shapes)
     {
-        var root = new Godot.Collections.Dictionary();
+        var subPathsArray = new Godot.Collections.Array();
 
-        var shapes = new Godot.Collections.Dictionary();
-
-        foreach (var shapeKvp in doc.Shapes)
+        foreach (var sub in shapeKvp.Value.SubPaths)
         {
-            var subPathsArray = new Godot.Collections.Array();
+            var segmentsArray = new Godot.Collections.Array();
 
-            foreach (var sub in shapeKvp.Value.SubPaths)
+            foreach (var seg in sub.Segments)
             {
-                var segmentsArray = new Godot.Collections.Array();
-
-                foreach (var seg in sub.Segments)
+                var startDict = new Godot.Collections.Dictionary
                 {
-                    var startDict = new Godot.Collections.Dictionary
-                    {
-                        ["IsEmpty"] = seg.Start == Vector2.Zero,
-                        ["X"] = seg.Start.X,
-                        ["Y"] = seg.Start.Y
-                    };
-
-                    var endDict = new Godot.Collections.Dictionary
-                    {
-                        ["IsEmpty"] = seg.End == Vector2.Zero,
-                        ["X"] = seg.End.X,
-                        ["Y"] = seg.End.Y
-                    };
-
-                    var controlDict = new Godot.Collections.Dictionary
-                    {
-                        ["IsEmpty"] = seg.Control == Vector2.Zero,
-                        ["X"] = seg.Control.X,
-                        ["Y"] = seg.Control.Y
-                    };
-
-                    var colorDict = new Godot.Collections.Dictionary
-                    {
-                        ["R"] = (int)(seg.Color.R * 255),
-                        ["G"] = (int)(seg.Color.G * 255),
-                        ["B"] = (int)(seg.Color.B * 255),
-                        ["A"] = (int)(seg.Color.A * 255)
-                    };
-
-                    segmentsArray.Add(new Godot.Collections.Dictionary
-                    {
-                        ["Type"] = seg.Type,
-                        ["Start"] = startDict,
-                        ["End"] = endDict,
-                        ["Control"] = controlDict,
-                        ["Color"] = colorDict
-                    });
-                }
-
-                var fillColorDict = new Godot.Collections.Dictionary
+                    ["IsEmpty"] = seg.Start == Vector2.Zero,
+                    ["X"] = seg.Start.X,
+                    ["Y"] = seg.Start.Y
+                };
+                var endDict = new Godot.Collections.Dictionary
                 {
-                    ["R"] = (int)(sub.FillColor.R * 255),
-                    ["G"] = (int)(sub.FillColor.G * 255),
-                    ["B"] = (int)(sub.FillColor.B * 255),
-                    ["A"] = (int)(sub.FillColor.A * 255)
+                    ["IsEmpty"] = seg.End == Vector2.Zero,
+                    ["X"] = seg.End.X,
+                    ["Y"] = seg.End.Y
+                };
+                var controlDict = new Godot.Collections.Dictionary
+                {
+                    ["IsEmpty"] = seg.Control == Vector2.Zero,
+                    ["X"] = seg.Control.X,
+                    ["Y"] = seg.Control.Y
+                };
+                var colorDict = new Godot.Collections.Dictionary
+                {
+                    ["R"] = (int)(seg.Color.R * 255),
+                    ["G"] = (int)(seg.Color.G * 255),
+                    ["B"] = (int)(seg.Color.B * 255),
+                    ["A"] = (int)(seg.Color.A * 255)
                 };
 
-                subPathsArray.Add(new Godot.Collections.Dictionary
+                segmentsArray.Add(new Godot.Collections.Dictionary
                 {
-                    ["FillColor"] = fillColorDict,
-                    ["Segments"] = segmentsArray
+                    ["Type"] = seg.Type,
+                    ["Start"] = startDict,
+                    ["End"] = endDict,
+                    ["Control"] = controlDict,
+                    ["Color"] = colorDict
                 });
             }
 
-            shapes[shapeKvp.Key] = new Godot.Collections.Dictionary
+            var fillColorDict = new Godot.Collections.Dictionary
             {
-                ["SubPaths"] = subPathsArray
+                ["R"] = (int)(sub.FillColor.R * 255),
+                ["G"] = (int)(sub.FillColor.G * 255),
+                ["B"] = (int)(sub.FillColor.B * 255),
+                ["A"] = (int)(sub.FillColor.A * 255)
             };
+
+            subPathsArray.Add(new Godot.Collections.Dictionary
+            {
+                ["FillColor"] = fillColorDict,
+                ["Segments"] = segmentsArray
+            });
         }
 
-        root["Shapes"] = shapes;
-
-        var sprites = new Godot.Collections.Dictionary();
-
-        foreach (var spriteKvp in doc.Sprites)
+        shapes[shapeKvp.Key] = new Godot.Collections.Dictionary
         {
-            var childrenArray = new Godot.Collections.Array();
-            foreach (var c in spriteKvp.Value.Children)
+            ["SubPaths"] = subPathsArray
+        };
+    }
+
+    root["Shapes"] = shapes;
+
+    var sprites = new Godot.Collections.Dictionary();
+    foreach (var spriteKvp in doc.Sprites)
+    {
+        var childrenArray = new Godot.Collections.Array();
+        foreach (var c in spriteKvp.Value.Children)
+        {
+            childrenArray.Add(new Godot.Collections.Dictionary
             {
-                childrenArray.Add(new Godot.Collections.Dictionary
-                {
-                    ["ID"] = c.ID,
-                    ["Type"] = c.Type
-                });
-            }
-
-            var framesArray = new Godot.Collections.Array();
-            foreach (var frame in spriteKvp.Value.Frames)
-            {
-                var frameDict = new Godot.Collections.Dictionary();
-                foreach (var f in frame)
-                {
-                    var ft = f.Value;
-                    var matrixArray = new Godot.Collections.Array
-                    {
-                        ft.TransformMatrix[0],
-                        ft.TransformMatrix[1],
-                        ft.TransformMatrix[2],
-                        ft.TransformMatrix[3],
-                        ft.TransformMatrix[4],
-                        ft.TransformMatrix[5]
-                    };
-
-                    frameDict[f.Key] = new Godot.Collections.Dictionary
-                    {
-                        ["SymbolID"] = ft.SymbolID,
-                        ["Depth"] = ft.Depth,
-                        ["X"] = ft.X,
-                        ["Y"] = ft.Y,
-                        ["ScaleX"] = ft.ScaleX,
-                        ["ScaleY"] = ft.ScaleY,
-                        ["Rotation"] = ft.Rotation,
-                        ["TransformMatrix"] = matrixArray,
-                        ["Visible"] = ft.Visible,
-                        ["LocalX"] = ft.TransformMatrix[4] ,
-                        ["LocalY"] = -ft.TransformMatrix[5] 
-
-                    };
-
-                }
-                
-                
-                framesArray.Add(frameDict);
-            }
-
-            var frameNamesArray = new Godot.Collections.Array();
-            foreach (var name in spriteKvp.Value.FrameNames)
-                frameNamesArray.Add(name);
-
-            sprites[spriteKvp.Key] = new Godot.Collections.Dictionary
-            {
-                ["Children"] = childrenArray,
-                ["Frames"] = framesArray,
-                ["FrameNames"] = frameNamesArray
-            };
+                ["ID"] = c.ID,
+                ["Type"] = c.Type
+            });
         }
 
-        root["Sprites"] = sprites;
+        var framesArray = new Godot.Collections.Array();
+        foreach (var frame in spriteKvp.Value.Frames)
+        {
+            var frameDict = new Godot.Collections.Dictionary();
+            foreach (var f in frame)
+            {
+                var ft = f.Value;
+                var matrixArray = new Godot.Collections.Array
+                {
+                    ft.TransformMatrix[0],
+                    ft.TransformMatrix[1],
+                    ft.TransformMatrix[2],
+                    ft.TransformMatrix[3],
+                    ft.TransformMatrix[4],
+                    ft.TransformMatrix[5]
+                };
 
-        return root;
+                frameDict[f.Key] = new Godot.Collections.Dictionary
+                {
+                    ["SymbolID"] = ft.SymbolID,
+                    ["Depth"] = ft.Depth,
+                    ["X"] = ft.X,
+                    ["Y"] = ft.Y,
+                    ["ScaleX"] = ft.ScaleX,
+                    ["ScaleY"] = ft.ScaleY,
+                    ["Rotation"] = ft.Rotation,
+                    ["TransformMatrix"] = matrixArray,
+                    ["Visible"] = ft.Visible,
+                    ["LocalX"] = ft.TransformMatrix[4],
+                    ["LocalY"] = -ft.TransformMatrix[5],
+
+        
+                    ["EffectiveColor"] = ft.EffectiveColor
+
+                };
+
+            }
+
+            framesArray.Add(frameDict);
+        }
+
+        var frameNamesArray = new Godot.Collections.Array();
+        foreach (var name in spriteKvp.Value.FrameNames)
+            frameNamesArray.Add(name);
+
+        sprites[spriteKvp.Key] = new Godot.Collections.Dictionary
+        {
+            ["Children"] = childrenArray,
+            ["Frames"] = framesArray,
+            ["FrameNames"] = frameNamesArray
+        };
     }
+
+    root["Sprites"] = sprites;
+
+    return root;
+}
 
 
     private Dictionary<int, Vector2> GetSpriteLocalPositions(DefineSpriteTag sprite)
@@ -323,7 +320,8 @@ private SpriteExportData ProcessTimeline(IEnumerable<SwfTagBase> tags, bool bake
 {
     var displayList = new Dictionary<int, FrameTag>();
     var frames = new List<Dictionary<int, FrameTag>>();
-    var children = new Dictionary<int, string>();
+    var children = new List<ChildInfo>();
+
     var frameNames = new List<string>();
     string pendingLabel = null;
 
@@ -344,7 +342,8 @@ private SpriteExportData ProcessTimeline(IEnumerable<SwfTagBase> tags, bool bake
             Rotation = source.Rotation,
             TransformMatrix = source.TransformMatrix != null ? (float[])source.TransformMatrix.Clone() : null,
             Visible = source.Visible,
-            IsDirty = source.IsDirty
+            IsDirty = source.IsDirty,
+            EffectiveColor = source.EffectiveColor
         };
     }
 
@@ -416,16 +415,42 @@ private SpriteExportData ProcessTimeline(IEnumerable<SwfTagBase> tags, bool bake
                         if (!frameDict.ContainsKey(depth))
                         {
                             var carryover = CloneFrameTag(kvp.Value);
+
+                            // Recalculate EffectiveColor for the carried-over frame
+                            if (carryover.ColorTransformRGBA.HasAddTerms)
+                            {
+                                var rgba = carryover.ColorTransformRGBA;
+                                carryover.EffectiveColor = new Color(
+                                    rgba.RedMultTerm / 255f + rgba.RedAddTerm / 255f,
+                                    rgba.GreenMultTerm / 255f + rgba.GreenAddTerm / 255f,
+                                    rgba.BlueMultTerm / 255f + rgba.BlueAddTerm / 255f,
+                                    rgba.AlphaMultTerm / 255f + rgba.AlphaAddTerm / 255f
+                                );
+                            }
+                            else if (carryover.ColorTransform.HasAddTerms)
+                            {
+                                var rgb = carryover.ColorTransform;
+                                carryover.EffectiveColor = new Color(
+                                    rgb.RedMultTerm / 255f + rgb.RedAddTerm / 255f,
+                                    rgb.GreenMultTerm / 255f + rgb.GreenAddTerm / 255f,
+                                    rgb.BlueMultTerm / 255f + rgb.BlueAddTerm / 255f,
+                                    1f
+                                );
+                            }
+                            else
+                            {
+                                carryover.EffectiveColor = new Color(1, 1, 1, 1);
+                            }
+
                             carryover.IsDirty = false;
                             frameDict[depth] = carryover;
 
-                          
                             if (!firstFrameData.ContainsKey(carryover.SymbolID))
                                 firstFrameData[carryover.SymbolID] = CloneFrameTag(carryover);
-                           
                         }
                     }
                 }
+
 
                 frames.Add(frameDict);
                 frameNames.Add(pendingLabel);
@@ -444,12 +469,18 @@ private SpriteExportData ProcessTimeline(IEnumerable<SwfTagBase> tags, bool bake
                 break;
 
             case PlaceObject2Tag p2:
-                if (!displayList.ContainsKey(p2.Depth) && !p2.HasCharacter) break;
+                int symbolId = p2.HasCharacter
+                    ? p2.CharacterID
+                    : displayList.TryGetValue(p2.Depth, out var existing) ? existing.SymbolID : 0;
 
-                int characterId = p2.HasCharacter ? p2.CharacterID : displayList[p2.Depth].SymbolID;
-                bool isNew = !displayList.ContainsKey(p2.Depth);
-                UpdateDisplayObject(displayList, children, characterId, p2.Depth, p2.Matrix, isNew, p2.HasMatrix);
+                bool isNewEntry = !displayList.ContainsKey(p2.Depth);
+
+                object ct = p2.HasColorTransform ? (object)p2.ColorTransform : null;
+
+                UpdateDisplayObject(displayList, children, symbolId, p2.Depth, p2.Matrix, isNewEntry, p2.HasMatrix, ct);
                 break;
+
+
 
             case RemoveObject2Tag r:
                 removedDepths.Add(r.Depth);
@@ -461,7 +492,7 @@ private SpriteExportData ProcessTimeline(IEnumerable<SwfTagBase> tags, bool bake
 
     var spriteData = new SpriteExportData
     {
-        Children = children.Select(kvp => new ChildInfo { ID = kvp.Key, Type = kvp.Value }).ToList(),
+        Children = children.Select(kvp => new ChildInfo { ID = kvp.ID, Type = kvp.Type }).ToList(),
         Frames = frames,
         FrameNames = frameNames,
         LocalX = localX,
@@ -474,75 +505,167 @@ private SpriteExportData ProcessTimeline(IEnumerable<SwfTagBase> tags, bool bake
     return spriteData;
 }
 
-    private void UpdateDisplayObject( Dictionary<int, FrameTag> displayList, Dictionary<int, string> children, int characterId, int depth, SwfMatrix matrix,bool hasCharacter, bool hasMatrix)
+private void UpdateDisplayObject(
+    Dictionary<int, FrameTag> displayList,
+    List<ChildInfo> childrenList,
+    int characterId,
+    int depth,
+    SwfMatrix matrix,
+    bool hasCharacter,
+    bool hasMatrix,
+    object colorTransform = null
+)
+{
+    displayList.TryGetValue(depth, out var prev);
+
+    float x = prev?.X ?? 0;
+    float y = prev?.Y ?? 0;
+    float sx = prev?.ScaleX ?? 1;
+    float sy = prev?.ScaleY ?? 1;
+    float rot = prev?.Rotation ?? 0;
+    float[] mat = prev?.TransformMatrix != null ? (float[])prev.TransformMatrix.Clone() : new float[] { 1, 0, 0, 1, 0, 0 };
+
+    if (hasMatrix)
     {
-        displayList.TryGetValue(depth, out var prev);
+        x = matrix.TranslateX * TWIPS_TO_PIXELS;
+        y = matrix.TranslateY * TWIPS_TO_PIXELS;
 
-        float x = prev?.X ?? 0;
-        float y = prev?.Y ?? 0;
-        float sx = prev?.ScaleX ?? 1;
-        float sy = prev?.ScaleY ?? 1;
-        float rot = prev?.Rotation ?? 0;
-        float[] mat = prev?.TransformMatrix != null ? (float[])prev.TransformMatrix.Clone() : new float[] { 1, 0, 0, 1, 0, 0 };
+        float a = (float)matrix.ScaleX;
+        float b = (float)matrix.RotateSkew0;
+        float c = (float)matrix.RotateSkew1;
+        float d = (float)matrix.ScaleY;
 
-        if (hasMatrix)
-        {
-            x = matrix.TranslateX * TWIPS_TO_PIXELS;
-            y = matrix.TranslateY * TWIPS_TO_PIXELS;
+        sx = (float)Math.Sqrt(a * a + b * b);
+        sy = (float)Math.Sqrt(c * c + d * d);
+        rot = -(float)Math.Atan2(b, a) * (180f / Mathf.Pi);
 
-            float a = (float)matrix.ScaleX;
-            float b = (float)matrix.RotateSkew0;
-            float c = (float)matrix.RotateSkew1;
-            float d = (float)matrix.ScaleY;
-
-            sx = (float)Math.Sqrt(a * a + b * b);
-            sy = (float)Math.Sqrt(c * c + d * d);
-            rot = -(float)Math.Atan2(b, a) * (180f / Mathf.Pi);
-
-            mat[0] = a; mat[1] = b; mat[2] = c; mat[3] = d; mat[4] = x; mat[5] = y;
-        }
-
-        bool matrixChanged = prev == null || !MatrixEquals(prev.TransformMatrix, mat);
-
-        bool isDirty =
-            prev == null ||
-            prev.SymbolID != characterId ||
-            prev.Visible == false ||
-            matrixChanged;
-
-
-        if (prev != null)
-        {
-            if (hasCharacter && prev.SymbolID != characterId)
-            {
-                prev.SymbolID = characterId;
-                isDirty = true;
-            }
-
-            prev.X = x; prev.Y = y; prev.ScaleX = sx; prev.ScaleY = sy; prev.Rotation = rot; prev.TransformMatrix = mat; prev.Visible = true;
-            prev.IsDirty = isDirty;
-            displayList[depth] = prev;
-        }
-        else
-        {
-            displayList[depth] = new FrameTag
-            {
-                SymbolID = characterId,
-                Depth = depth,
-                X = x,
-                Y = y,
-                ScaleX = sx,
-                ScaleY = sy,
-                Rotation = rot,
-                TransformMatrix = mat,
-                Visible = true,
-                IsDirty = true
-            };
-        }
-
-        if (!children.ContainsKey(characterId))
-            children[characterId] = shapeDict.ContainsKey(characterId) ? "Shape" : "Sprite";
+        mat[0] = a; mat[1] = b; mat[2] = c; mat[3] = d; mat[4] = x; mat[5] = y;
     }
+
+    bool matrixChanged = prev == null || !MatrixEquals(prev.TransformMatrix, mat);
+
+    bool isDirty =
+        prev == null ||
+        prev.SymbolID != characterId ||
+        prev.Visible == false ||
+        matrixChanged;
+
+    FrameTag frame;
+    if (prev != null)
+    {
+        frame = prev;
+
+        if (hasCharacter && prev.SymbolID != characterId)
+        {
+            frame.SymbolID = characterId;
+            isDirty = true;
+        }
+
+        frame.X = x;
+        frame.Y = y;
+        frame.ScaleX = sx;
+        frame.ScaleY = sy;
+        frame.Rotation = rot;
+        frame.TransformMatrix = mat;
+        frame.Visible = true;
+        frame.IsDirty = isDirty;
+    }
+    else
+    {
+        frame = new FrameTag
+        {
+            SymbolID = characterId,
+            Depth = depth,
+            X = x,
+            Y = y,
+            ScaleX = sx,
+            ScaleY = sy,
+            Rotation = rot,
+            TransformMatrix = mat,
+            Visible = true,
+            IsDirty = true
+        };
+    }
+
+    frame.HasAnimatedColor = colorTransform != null;
+
+    Color baseColor = new Color(1, 1, 1, 1);
+
+    if (colorTransform is SwfLib.Data.ColorTransformRGBA rgba)
+    {
+        frame.ColorTransformRGBA = rgba;
+
+        float rMult = 1f, gMult = 1f, bMult = 1f, aMult = 1f;
+        float rAdd = 0f, gAdd = 0f, bAdd = 0f, aAdd = 0f;
+
+        if (rgba.HasMultTerms)
+        {
+            rMult = rgba.RedMultTerm / 255f;
+            gMult = rgba.GreenMultTerm / 255f;
+            bMult = rgba.BlueMultTerm / 255f;
+            aMult = rgba.AlphaMultTerm / 255f;
+        }
+
+        if (rgba.HasAddTerms)
+        {
+            rAdd = rgba.RedAddTerm / 255f;
+            gAdd = rgba.GreenAddTerm / 255f;
+            bAdd = rgba.BlueAddTerm / 255f;
+            aAdd = rgba.AlphaAddTerm / 255f;
+        }
+
+        frame.EffectiveColor = new Color(
+            baseColor.R * rMult + rAdd,
+            baseColor.G * gMult + gAdd,
+            baseColor.B * bMult + bAdd,
+            baseColor.A * aMult + aAdd
+        );
+    }
+    else if (colorTransform is SwfLib.Data.ColorTransformRGB rgb)
+    {
+        frame.ColorTransform = rgb;
+
+        float rMult = 1f, gMult = 1f, bMult = 1f;
+        float rAdd = 0f, gAdd = 0f, bAdd = 0f;
+
+        if (rgb.HasMultTerms)
+        {
+            rMult = rgb.RedMultTerm / 255f;
+            gMult = rgb.GreenMultTerm / 255f;
+            bMult = rgb.BlueMultTerm / 255f;
+        }
+
+        if (rgb.HasAddTerms)
+        {
+            rAdd = rgb.RedAddTerm / 255f;
+            gAdd = rgb.GreenAddTerm / 255f;
+            bAdd = rgb.BlueAddTerm / 255f;
+        }
+
+        frame.EffectiveColor = new Color(
+            baseColor.R * rMult + rAdd,
+            baseColor.G * gMult + gAdd,
+            baseColor.B * bMult + bAdd,
+            baseColor.A
+        );
+    }
+    else
+    {
+        frame.EffectiveColor = baseColor;
+    }
+
+
+
+    displayList[depth] = frame;
+
+    if (!childrenList.Any(c => c.ID == characterId))
+        childrenList.Add(new ChildInfo {
+            ID = characterId,
+            Type = shapeDict.ContainsKey(characterId) ? "Shape" : "Sprite"
+        });
+
+}
+
 
     private bool MatrixEquals(float[] a, float[] b)
     {
@@ -973,16 +1096,21 @@ private ShapeData ConvertShapeToSubPaths(dynamic shapeTag)
     }
 
     public class PathSegment { public string Type = "line"; public Vector2 Start, Control, End; public Color Color = new(1, 1, 1, 1); }
-    public class FrameTag {
+    public class FrameTag
+    {
         public int SymbolID, Depth;
         public float X, Y, ScaleX = 1, ScaleY = 1, Rotation;
-        public float LocalX, LocalY;
         public float[] TransformMatrix = new float[] { 1, 0, 0, 1, 0, 0 };
         public bool Visible = true;
         public bool IsDirty = true;
 
-        public FrameTag Clone() => (FrameTag)MemberwiseClone();
+        // NEW
+        public bool HasAnimatedColor = false;
+        public SwfLib.Data.ColorTransformRGB ColorTransform;
+        public SwfLib.Data.ColorTransformRGBA ColorTransformRGBA;
+        public Color EffectiveColor = new Color(1,1,1,1);
     }
+
     public class Edge
     {
         public Vector2 Start;
