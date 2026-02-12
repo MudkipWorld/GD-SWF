@@ -51,9 +51,24 @@ func parse_json(data: Dictionary, player : SWFPlayer, smooth : int = 5) -> Array
 	return returned_shapes
 
 # todo : Proper export instead of direct raw data..
-func export_json_optimized(data : Dictionary = {}, file_name : String = ""):
-	if data.is_empty(): return
-	var json := JSON.stringify(data, "\t")
+func export_json_optimized(player : SWFPlayer = null, file_name : String = ""):
+	if !player: return
+	
+	var main_structure : Dictionary = {
+		"sprites" : {},
+		"shapes" : {},
+		"animated_sprite_id" : player.animated_sprite_id,
+		"model_placement" : {x = player.model_placement.x, y = player.model_placement.y},
+		"fps" : player.fps,
+	}
+
+	for sp in player.sprites.keys():
+		main_structure["sprites"][sp] = player.sprites[sp].get_data()
+		
+	for sh in player.shapes.keys():
+		main_structure["sprites"][sh] = player.shapes[sh].get_data()
+
+	var json := JSON.stringify(main_structure, "\t")
 	var file := FileAccess.open(json_export_folder + "/" + file_name + ".json", FileAccess.WRITE)
 	file.store_string(json)
 	file.close()
@@ -190,16 +205,15 @@ func build_animations(player: SWFPlayer, root_sprite_id: int, bones_list: Array)
 				var hidden_val = 0.0
 				if !ft.visible:
 					hidden_val = 1.0
+					
 
-				# apply transformation matrix for keyframe movement
 				for bone_id in target_bone_ids:
 					var local_pos = Vector2(ft.local_x, ft.local_y)
-					var local_transform : Transform2D = Transform2D.IDENTITY
+					var local_transform = Transform2D.IDENTITY
 					local_transform = local_transform.scaled(Vector2(ft.scale_x, ft.scale_y))
 					local_transform = local_transform.rotated(deg_to_rad(ft.rotation))
 					local_transform = local_transform.translated(local_pos)
 
-					# create "psuedo data" for the check between current and previous frame.
 					var current_values = {
 						"PositionX": local_transform.get_origin().x,
 						"PositionY": local_transform.get_origin().y,
@@ -208,26 +222,40 @@ func build_animations(player: SWFPlayer, root_sprite_id: int, bones_list: Array)
 						"ScaleY": local_transform.get_scale().y,
 						"Zindex": ft.depth,
 						"Hidden": hidden_val
-						}
+					}
 
+					# loop through each property and add a keyframe if it changed
 					for element_str in current_values.keys():
 						var val = current_values[element_str]
-						# check if data (PositionX for example) changed between current and previous frame.
-						if last_values[bone_id][element_str] == val:
-							continue
+						var add_keyframe = true
+						if last_values[bone_id].has(element_str):
+							if last_values[bone_id][element_str] == val:
+								add_keyframe = false
 
-						last_values[bone_id][element_str] = val
-						
-						# get the currently changed element_index based off the element string/ element name (PositionX, Rotation, etc..)
-						var element_index = match_element_keyframe(element_str)
-						anim["keyframes"].append({
-							"frame": local_frame,
-							"bone_id": bone_id,
-							"element": element_index,
-							"element_str": element_str,
-							"value": val,
-							"transition": "Linear"
-						})
+						if add_keyframe:
+							last_values[bone_id][element_str] = val
+							var element_index = match_element_keyframe(element_str)
+							anim["keyframes"].append({
+								"frame": local_frame,
+								"bone_id": bone_id,
+								"element": element_index,
+								"element_str": element_str,
+								"value": val,
+								"transition": "Linear"
+							})
+						var tex_name = "shape_%d" % ft.symbol_id
+						if player.shapes.has(ft.symbol_id):
+							if last_values[bone_id].get("Texture", "") != tex_name:
+								last_values[bone_id]["Texture"] = tex_name
+								anim["keyframes"].append({
+									"frame": local_frame,
+									"bone_id": bone_id,
+									"element": 6, # Texture
+									"element_str": "Texture",
+									"value_str": tex_name,
+									"value": 0.0,
+									"transition": "Linear"
+								})
 
 		animations_list.append(anim)
 
@@ -257,6 +285,7 @@ func build_animations(player: SWFPlayer, root_sprite_id: int, bones_list: Array)
 
 	return animations_list
 
+
 func build_bones_recursive(player: SWFPlayer, sprite_id: int, parent_bone_idx: int, bones_list: Array, symbol_to_bone : Dictionary = {}):
 	if !player.sprites.has(sprite_id):
 		return
@@ -268,52 +297,50 @@ func build_bones_recursive(player: SWFPlayer, sprite_id: int, parent_bone_idx: i
 	# loop through all sprite's frames
 	for h in sprite.frames.size():
 		var frame_dict = sprite.frames[h]
-		
 		var frames = frame_dict.keys()
 
 		for current_frame in frames:
 			var ft = frame_dict[current_frame]
-			
-			# check if data was seen before to prevent dupes
-			var hhh = str(parent_bone_idx) + "_" + str(sprite_id) + "_" + str(ft.symbol_id) + "_" + str(current_frame)
-			if symbol_to_bone.has(hhh):
-				continue
 
-			# basic bone data
+			# Use parent + sprite + symbol only to prevent duplicates (ignore current_frame)
 			var bone_idx = bones_list.size()
-			var local_pos = Vector2(ft.x, -ft.y)
-			var local_transform : Transform2D = Transform2D.IDENTITY
-			var tex_name = ""
-			
-			if player.shapes.has(ft.symbol_id):
-				tex_name = "shape_%d" % ft.symbol_id
-				local_pos = get_local_shape(player, ft)
-			
-			#applying transformation
-			local_transform = local_transform.scaled(Vector2(ft.scale_x, ft.scale_y))
-			local_transform = local_transform.rotated(deg_to_rad(ft.rotation))
-			local_transform = local_transform.translated(local_pos)
+			var bone_key = str(parent_bone_idx) + "_" + str(sprite_id) + "_" + str(ft.symbol_id)
+			if symbol_to_bone.has(bone_key):
+				# Already created a bone for this symbol under this parent
+				bone_idx = symbol_to_bone[bone_key]
+			else:
+				# basic bone data
+				var local_pos = Vector2(ft.x, -ft.y)
+				var local_transform : Transform2D = Transform2D.IDENTITY
+				var tex_name = ""
+				
+				if player.shapes.has(ft.symbol_id):
+					tex_name = "shape_%d" % ft.symbol_id
+					local_pos = get_local_shape(player, ft)
+				
+				# applying transformation
+				local_transform = local_transform.scaled(Vector2(ft.scale_x, ft.scale_y))
+				local_transform = local_transform.rotated(deg_to_rad(ft.rotation))
+				local_transform = local_transform.translated(local_pos)
 
-			# Create a very basic bone
-			var bone = {
-				"id": bone_idx,
-				"parent_id": parent_bone_idx,
-				"name": "symbol_%d" % ft.symbol_id,
-				"pos": {"x": local_transform.get_origin().x, "y": local_transform.get_origin().y},
-				"scale": {"x": local_transform.get_scale().x, "y": local_transform.get_scale().y},
-				"rot": local_transform.get_rotation(),
-				"tex": tex_name,
-				"zindex": ft.depth, # z-index is named depth in the SWFClasses.SWFFrame
-				"ik_family_id": -1,
-			}
-			
-			# Add bone to array
-			bones_list.append(bone)
-			
-			var key = str(parent_bone_idx) + "_" + str(sprite_id) + "_" + str(ft.symbol_id) + "_" + str(current_frame)
-			symbol_to_bone[key] = bone_idx
-			
-			# Recruse through the rest of the bones
+				# Create bone
+				var bone = {
+					"id": bone_idx,
+					"parent_id": parent_bone_idx,
+					"name": "symbol_%d" % ft.symbol_id,
+					"pos": {"x": local_transform.get_origin().x, "y": local_transform.get_origin().y},
+					"scale": {"x": local_transform.get_scale().x, "y": local_transform.get_scale().y},
+					"rot": local_transform.get_rotation(),
+					"tex": tex_name,
+					"zindex": ft.depth,
+					"ik_family_id": -1,
+				}
+				
+				# Add bone to array
+				bones_list.append(bone)
+				symbol_to_bone[bone_key] = bone_idx
+
+			# Recurse through the rest of the bones
 			if player.sprites.has(ft.symbol_id):
 				build_bones_recursive(player, ft.symbol_id, bone_idx, bones_list, symbol_to_bone)
 

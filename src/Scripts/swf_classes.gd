@@ -79,6 +79,48 @@ class SWFShape:
 					"width": st.get("Width", 1.0)
 				})
 
+	# I think this is one of the most complex json get data i ever made lmao
+	func get_data() -> Dictionary:
+		var dat : Dictionary = {
+			"subpaths" : [],
+			"offset" : { "x" : offset.x, "y" : offset.y},
+			"size" : { "x" : size.x, "y" : size.y},
+			"svg_text" : svg_text,
+		}
+		
+		for i in subpaths:
+			var dt : Dictionary = {
+				"segments": i["segments"],
+				"lines": [],
+				"polygons": [],
+				"triangles": {"points": [], "indices": []},
+				"color": {"r": 1.0, "g": 1.0, "b": 1.0, "a" : 1.0}
+			}
+			
+			for l in i["lines"]:
+				dt["lines"].append({
+					"type": l["type"],
+					"start": l["start"],
+					"end": l["end"],
+					"control":  { "x" : l["control"].x, "y" : l["control"].y}
+					
+				})
+				
+			for ply in i["polygons"]:
+				var poly : Array = []
+				for pl in ply:
+					poly.append({ "x" : pl.x, "y" : pl.y})
+				
+				dt["polygons"].append(poly)
+			
+			for p in i["triangles"]["points"]:
+				dt["triangles"]["points"].append({ "x" : p.x, "y" : p.y})
+			
+			for p in i["triangles"]["indices"]:
+				dt["triangles"]["indices"].append(p)
+
+		return dat
+
 	func build_geometry(smooth_interation: int = 20, hollow_pieces: bool = false):
 		subpaths = backup_subpaths.duplicate(true)
 		var min_pt = Vector2(INF, INF)
@@ -662,3 +704,41 @@ class SWFSprite:
 		# Add last animation
 		if current_frames.size() > 0 and current_anim != "":
 			animations[current_anim] = current_frames.duplicate()
+
+	func get_data() -> Dictionary:
+		var dat : Dictionary = {
+			"max_depth" : max_nesting_depth,
+			"frames" : [],
+			"animations" : animations,
+			"children" : [],
+		}
+		for ch in children:
+			dat["children"].append({
+				"id" : ch.id,
+				"type" : ch.type
+			})
+		
+		for frame in frames:
+			var frame_data : Dictionary = {}
+			for fd in frame.keys():
+				var f = frame[fd]
+				frame_data[fd] = {
+					"symbol_id" : f.symbol_id,
+					"x" : f.x,
+					"y" : f.y,
+					"scale_x" : f.scale_x,
+					"scale_y" : f.scale_y,
+					
+					"rotation" : f.rotation,
+					"transform_matrix" : f.transform_matrix,
+					"visible" : f.visible,
+					"alpha" : f.alpha,
+					
+					"local_x" : f.local_x,
+					"local_y" : f.local_y,
+					
+					"is_dirty" : f.is_dirty
+				}
+			dat["frames"].append(frame_data)
+		
+		return dat

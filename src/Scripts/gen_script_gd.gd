@@ -126,7 +126,7 @@ func _on_export_dialog_dir_selected(dir: String) -> void:
 	match current_export_type:
 		ExportType.Normal:
 			%GenExport.json_export_folder = dir
-			%GenExport.export_json_optimized(loaded_data, loaded_swf_name)
+			%GenExport.export_json_optimized(player, loaded_swf_name)
 		ExportType.SVG:
 			%GenExport.svg_export_folder = dir
 			%GenExport.export_all_svgs(player)
