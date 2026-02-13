@@ -23,6 +23,7 @@ class SWFFrame:
 	var local_y: float = 0.0
 	var alpha : float = 1.0
 	var color: Color = Color(1, 1, 1, 1) 
+	var lumi : float = 1.0
 
 	func _init(data : Dictionary):
 		symbol_id = data.get("SymbolID", 0)
@@ -33,7 +34,7 @@ class SWFFrame:
 		scale_y = data.get("ScaleY", 1.0)
 		alpha = data.get("Alpha", 1.0)
 		rotation = data.get("Rotation", 0.0)
-		
+		lumi = data.get("Lumi", 1.0)
 		local_x = data.get("LocalX", 0)
 		local_y = data.get("LocalY", 0)
 		visible = data.get("Visible", true)
@@ -720,6 +721,7 @@ class SWFSprite:
 
 	func get_data() -> Dictionary:
 		var dat : Dictionary = {
+			"SpriteName" : sprite_name,
 			"MaxDepth" : max_nesting_depth,
 			"Frames" : [],
 			"Animations" : animations,

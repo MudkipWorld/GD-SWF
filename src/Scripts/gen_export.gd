@@ -213,7 +213,7 @@ func build_animations(player: SWFPlayer, root_sprite_id: int, bones_list: Array)
 					local_transform = local_transform.scaled(Vector2(ft.scale_x, ft.scale_y))
 					local_transform = local_transform.rotated(deg_to_rad(ft.rotation))
 					local_transform = local_transform.translated(local_pos)
-
+					
 					var current_values = {
 						"PositionX": local_transform.get_origin().x,
 						"PositionY": local_transform.get_origin().y,
@@ -321,13 +321,18 @@ func build_bones_recursive(player: SWFPlayer, sprite_id: int, parent_bone_idx: i
 				local_transform = local_transform.scaled(Vector2(ft.scale_x, ft.scale_y))
 				local_transform = local_transform.rotated(deg_to_rad(ft.rotation))
 				local_transform = local_transform.translated(local_pos)
-
+				var final_pos : Vector2 = local_transform.get_origin()
+				if is_nan(final_pos.x) or is_inf(final_pos.x):
+					final_pos.x = 0.0
+					
+				if is_nan(final_pos.y) or is_inf(final_pos.y):
+					final_pos.y = 0.0
 				# Create bone
 				var bone = {
 					"id": bone_idx,
 					"parent_id": parent_bone_idx,
 					"name": "symbol_%d" % ft.symbol_id,
-					"pos": {"x": local_transform.get_origin().x, "y": local_transform.get_origin().y},
+					"pos": {"x": final_pos.x, "y": final_pos.y},
 					"scale": {"x": local_transform.get_scale().x, "y": local_transform.get_scale().y},
 					"rot": local_transform.get_rotation(),
 					"tex": tex_name,

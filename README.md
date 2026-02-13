@@ -24,6 +24,7 @@ Special thanks to RetroPaint for helping and letting me work on a Skelform expor
 {
   "Sprites": {
     "0": {
+      "SpriteName" : "Test",
       "MaxDepth": 2,
       "Frames": [
         {

@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://c8updkvpcscsd"]
 
-[ext_resource type="Script" uid="uid://c1aj0qxqbmtjh" path="res://Scripts/GenScript.cs" id="1_0xm2m"]
+[ext_resource type="Script" uid="uid://kp2684nww0x6" path="res://Scripts/csharpscripts/GenScript.cs" id="1_lquwl"]
 [ext_resource type="Script" uid="uid://44uy5dky2yjy" path="res://Scripts/gen_script_gd.gd" id="2_h2yge"]
 [ext_resource type="Script" uid="uid://mjwmkl4ptaph" path="res://Scripts/gen_export.gd" id="3_1bvp3"]
 [ext_resource type="Script" uid="uid://bmbekbej0v7dx" path="res://Scripts/swf_player.gd" id="3_h2yge"]
@@ -16,7 +16,7 @@ grow_vertical = 2
 
 [node name="GenScript" type="Node" parent="." unique_id=1675208391]
 unique_name_in_owner = true
-script = ExtResource("1_0xm2m")
+script = ExtResource("1_lquwl")
 
 [node name="GenScriptGD" type="Node" parent="." unique_id=1749284143]
 script = ExtResource("2_h2yge")

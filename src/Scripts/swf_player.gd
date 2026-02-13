@@ -13,9 +13,11 @@ var animated_sprite_id : int = 0
 var shapes : Dictionary = {}
 var sprites : Dictionary = {} 
 var current_frame : int = 0
+var sprite_frame_timers : Dictionary = {} 
 var sprite_current_frames : Dictionary = {} 
-var sprite_current_animation : Dictionary = {}
 var sprite_current_anim_frame : Dictionary = {} 
+var sprite_current_animation : Dictionary = {} 
+
 var frame_timer : float = 0.0
 var file_loaded_right : bool = false
 
@@ -28,13 +30,15 @@ func _physics_process(delta):
 	if !playing or !file_loaded_right:
 		return
 
+	# Accumulate delta for root only
 	frame_timer += delta
 	var frame_len := 1.0 / fps
 	interp_alpha = clamp(frame_timer / frame_len, 0.0, 1.0)
 
 	if frame_timer >= frame_len:
-		frame_timer = 0.0
-		advance_frames()
+		frame_timer -= frame_len
+		advance_frames(frame_len)
+		advance_children(animated_sprite_id, frame_len)
 		queue_redraw()
 
 func _draw():
@@ -43,33 +47,94 @@ func _draw():
 		return
 	draw_sprite_recursive(0, Transform2D.IDENTITY.scaled(draw_scale).translated(model_placement))
 
-func advance_frames():
-	if sprites.is_empty():
-		return
+func advance_frames(dt):
 	var sp_id = animated_sprite_id
 	if !sprites.has(sp_id):
 		return
-	var root_sprite : SWFClasses.SWFSprite = sprites[sp_id]
-	var anim_keys = root_sprite.animations.keys()
-	if anim_keys.is_empty():
-		fall_back_advance_frames(root_sprite)
+	var sprite : SWFClasses.SWFSprite = sprites[sp_id]
+
+	var anim_keys = sprite.animations.keys()
+	if anim_keys.size() > 0:
+		if current_animation >= anim_keys.size():
+			current_animation = 0
+		var anim_name = anim_keys[current_animation]
+		var anim_frames = sprite.animations[anim_name]
+
+		var current = int(sprite_current_anim_frame.get(sp_id, 0))
+		current += 1
+		if current >= anim_frames.size():
+			current = 0
+		sprite_current_anim_frame[sp_id] = current
+		sprite_current_frames[sp_id] = anim_frames[current]
+	else:
+		# fallback to raw frames
+		if sprite.frames.size() > 0:
+			var current = int(sprite_current_frames.get(sp_id, 0)) + 1
+			if current >= sprite.frames.size():
+				current = 0
+			sprite_current_frames[sp_id] = current
+
+func advance_children(sprite_id, dt):
+	if !sprites.has(sprite_id):
 		return
-	if current_animation >= anim_keys.size():
-		current_animation = 0
-	var anim_name = anim_keys[current_animation]
-	var anim_frames : Array = root_sprite.animations[anim_name]
+	var sprite = sprites[sprite_id]
 
-	var current = sprite_current_anim_frame.get(sp_id, 0)
-	current += 1
-	if current >= anim_frames.size():
-		current = 0
-	sprite_current_anim_frame[sp_id] = current
-	sprite_current_frames[sp_id] = anim_frames[current]
-	for id in sprites.keys():
-		if id != sp_id:
-			sprite_current_frames[id] = sprite_current_frames[sp_id]
+	for child in sprite.children:
+		var child_sprite = sprites.get(child.id, null)
+		if child_sprite == null:
+			continue
 
-	current_frame = sprite_current_frames[sp_id]
+		if child.id != animated_sprite_id:
+			# Determine visibility in parent frame
+			var parent_frame_index = sprite_current_frames.get(sprite_id, 0)
+			var parent_frame = sprite.frames[parent_frame_index]
+			var child_visible := false
+			for ft in parent_frame.values():
+				if ft.symbol_id == child.id and ft.visible:
+					child_visible = true
+					break
+
+			if not child_visible:
+				# Reset frame and timer if invisible
+				sprite_frame_timers[child.id] = 0.0
+				sprite_current_anim_frame[child.id] = 0
+				sprite_current_frames[child.id] = 0
+			else:
+				# Advance normally
+				if not sprite_frame_timers.has(child.id):
+					sprite_frame_timers[child.id] = 0.0
+				sprite_frame_timers[child.id] += dt
+
+				var anim_keys = child_sprite.animations.keys()
+				var anim_index = int(sprite_current_animation.get(child.id, 0))
+				var anim_frames : Array = []
+
+				if anim_keys.size() > 0:
+					if anim_index >= anim_keys.size():
+						anim_index = 0
+					var anim_name = anim_keys[anim_index]
+					anim_frames = child_sprite.animations[anim_name]
+					sprite_current_animation[child.id] = anim_index
+
+					while sprite_frame_timers[child.id] >= 1.0/fps:
+						sprite_frame_timers[child.id] -= 1.0/fps
+						var current = int(sprite_current_anim_frame.get(child.id, 0)) + 1
+						if current >= anim_frames.size():
+							current = 0
+						sprite_current_anim_frame[child.id] = current
+						sprite_current_frames[child.id] = anim_frames[current]
+				else:
+					# fallback to raw frames
+					while sprite_frame_timers[child.id] >= 1.0/fps:
+						sprite_frame_timers[child.id] -= 1.0/fps
+						var current = int(sprite_current_frames.get(child.id, 0)) + 1
+						if current >= child_sprite.frames.size():
+							current = 0
+						sprite_current_frames[child.id] = current
+
+		# Recurse into children
+		advance_children(child.id, dt)
+
 
 func fall_back_advance_frames(root : SWFClasses.SWFSprite = null):
 	if root == null:
@@ -92,25 +157,7 @@ func fall_back_advance_frames(root : SWFClasses.SWFSprite = null):
 			sprite_current_frames[id] = current
 	current_frame = current
 
-
-func compute_local_positions(sprite_id: int, parent_transform: Transform2D = Transform2D.IDENTITY):
-	if not sprites.has(sprite_id):
-		return
-	
-	var sprite : SWFClasses.SWFSprite = sprites[sprite_id]
-	
-	for frame_dict in sprite.frames:
-		for ft in frame_dict.values():
-			var local_pos = parent_transform.basis_xform(Vector2(ft.x, ft.y))
-			ft.local_x = local_pos.x
-			ft.local_y = local_pos.y
-
-	for child in sprite.children:
-		if sprites.has(child.id):
-			var t = Transform2D.IDENTITY.translated(Vector2(sprite.local_x, sprite.local_y))
-			compute_local_positions(child.id, parent_transform * t)
-
-func draw_sprite_recursive(sprite_id, parent_transform: Transform2D, parent_color: Color = Color(1,1,1,1)):
+func draw_sprite_recursive(sprite_id, parent_transform: Transform2D, parent_color: Color = Color(1,1,1,1), frame_lumi : float = 1.0):
 	if !sprites.has(sprite_id):
 		return
 
@@ -140,14 +187,14 @@ func draw_sprite_recursive(sprite_id, parent_transform: Transform2D, parent_colo
 
 		# Combine parent color with frame color
 		var combined_color = ft.color * parent_color
-
+		var combined_lumi = ft.lumi * frame_lumi
 
 		if shapes.has(ft.symbol_id):
-			draw_shape(shapes[ft.symbol_id], final_transform, combined_color)
+			draw_shape(shapes[ft.symbol_id], final_transform, combined_color, combined_lumi)
 		elif sprites.has(ft.symbol_id):
-			draw_sprite_recursive(ft.symbol_id, final_transform, combined_color)
+			draw_sprite_recursive(ft.symbol_id, final_transform, combined_color, combined_lumi)
 
-func draw_shape(shape: SWFClasses.SWFShape, _transform: Transform2D, frame_color: Color):
+func draw_shape(shape: SWFClasses.SWFShape, _transform: Transform2D, frame_color: Color, frame_lumi : float = 1.0):
 	if shape.subpaths.is_empty():
 		return
 
@@ -167,55 +214,11 @@ func draw_shape(shape: SWFClasses.SWFShape, _transform: Transform2D, frame_color
 				var indices: PackedInt32Array = sp["triangles"]["indices"]
 				var colors: PackedColorArray = PackedColorArray()
 				for i in range(points.size()):
-					var final = frame_color * sp["color"]
+					var final : Color = frame_color * sp["color"]
+					final.lightened(frame_lumi)
 					colors.append(final)
 				if indices.is_empty() or points.is_empty(): continue
 				RenderingServer.canvas_item_add_triangle_array(get_canvas_item(), indices, points, colors)
-
-func frame_to_transform(ft):
-	if ft.transform_matrix.size() == 6:
-		var m = ft.transform_matrix
-		return Transform2D(Vector2(m[0], m[1]), Vector2(m[2], m[3]), Vector2(m[4], m[5]))
-	var t = Transform2D.IDENTITY
-	t = t.scaled(Vector2(ft.scale_x, ft.scale_y))
-	t = t.rotated(-deg_to_rad(ft.rotation))
-	t = t.translated(Vector2(ft.x, ft.y))
-	return t
-
-func frame_to_transform_lerp(prev, curr, alpha: float) -> Transform2D:
-	if prev == null:
-		return frame_to_transform(curr)
-	var pm : Array
-	if prev.transform_matrix.size() == 6:
-		pm = prev.transform_matrix
-	else:
-		pm = build_matrix_from_components(prev)
-	var cm : Array
-	if curr.transform_matrix.size() == 6:
-		cm = curr.transform_matrix
-	else:
-		cm = build_matrix_from_components(curr)
-	var m := []
-	for i in range(6):
-		m.append(lerp(pm[i], cm[i], alpha))
-
-	return Transform2D(
-		Vector2(m[0], m[1]),
-		Vector2(m[2], m[3]),
-		Vector2(m[4], m[5])
-	)
-
-func build_matrix_from_components(ft) -> Array:
-	var t = Transform2D.IDENTITY
-	t = t.scaled(Vector2(ft.scale_x, ft.scale_y))
-	t = t.rotated(-deg_to_rad(ft.rotation))
-	t = t.translated(Vector2(ft.x, ft.y))
-
-	return [
-		t.x.x, t.x.y,
-		t.y.x, t.y.y,
-		t.origin.x, t.origin.y
-	]
 
 func sort_frames(a, b):
 	if a.depth != b.depth:
