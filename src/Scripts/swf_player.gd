@@ -52,6 +52,7 @@ func advance_frames():
 	var root_sprite : SWFClasses.SWFSprite = sprites[sp_id]
 	var anim_keys = root_sprite.animations.keys()
 	if anim_keys.is_empty():
+		fall_back_advance_frames(root_sprite)
 		return
 	if current_animation >= anim_keys.size():
 		current_animation = 0
@@ -69,6 +70,28 @@ func advance_frames():
 			sprite_current_frames[id] = sprite_current_frames[sp_id]
 
 	current_frame = sprite_current_frames[sp_id]
+
+func fall_back_advance_frames(root : SWFClasses.SWFSprite = null):
+	if root == null:
+		return
+		
+	var sp_id = animated_sprite_id
+	if root.frames.is_empty():
+		return
+		
+	var total_frames := root.frames.size()
+	var current = sprite_current_frames.get(sp_id, 0)
+	current += 1
+	
+	if current >= total_frames:
+		current = 0
+	sprite_current_frames[sp_id] = current
+	
+	for id in sprites.keys():
+		if id != sp_id:
+			sprite_current_frames[id] = current
+	current_frame = current
+
 
 func compute_local_positions(sprite_id: int, parent_transform: Transform2D = Transform2D.IDENTITY):
 	if not sprites.has(sprite_id):

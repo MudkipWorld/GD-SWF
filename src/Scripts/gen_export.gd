@@ -43,6 +43,7 @@ func parse_json(data: Dictionary, player : SWFPlayer, smooth : int = 5) -> Array
 			player.sprite_current_frames[id] = 0
 			player.sprite_current_animation[id] = ""
 			player.sprite_current_anim_frame[id] = 0
+			sprite.full_sprite_name = "({id}) {name}.".format({"id": str(id), "name": sprite.sprite_name})
 	
 	player.animated_sprite_id = int(data["Sprites"].keys()[-1])
 	

@@ -166,7 +166,7 @@ class SWFShape:
 						line_data["control"] = ctrl_pt
 						min_pt = min_pt.min(ctrl_pt)
 						max_pt = max_pt.max(ctrl_pt)
-						var steps = max(smooth_interation, int(start_pt.distance_to(ctrl_pt)+ctrl_pt.distance_to(end_pt))/4)
+						var steps: int = int(max(smooth_interation, start_pt.distance_to(ctrl_pt)+ctrl_pt.distance_to(end_pt)/4))
 						for p in subdivide_quadratic_bezier(start_pt, ctrl_pt, end_pt, steps):
 							poly.append(p)
 				else:
@@ -663,7 +663,6 @@ class SWFShape:
 			return closed
 		return poly
 
-
 class SWFSprite:
 	var children : Array = []
 	var frames : Array = []
@@ -673,13 +672,18 @@ class SWFSprite:
 	var local_y : float = 0.0
 	var max_nesting_depth : int = 0
 	var children_referenced : Array = []
+	var sprite_name : String = ""
+	var full_sprite_name : String = ""
 
 	func _init(data : Dictionary):
 		for c in data.get("Children", []):
 			children.append(SWFChild.new(c))
 		local_x = data.get("LocalX", 0)
 		local_y = data.get("LocalY", 0)
+		sprite_name =  data.get("SpriteName", "")
+		
 		max_nesting_depth =  data.get("MaxNestingDepth", 0)
+		
 		for idx in range(data.get("Frames", []).size()):
 			var f = data["Frames"][idx]
 			var frame_dict = {}

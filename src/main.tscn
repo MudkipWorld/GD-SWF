@@ -49,7 +49,7 @@ grow_vertical = 2
 theme_override_constants/separation = 0
 
 [node name="TopPanel" type="Panel" parent="VBox" unique_id=1782735791]
-custom_minimum_size = Vector2(0, 24)
+custom_minimum_size = Vector2(0, 26)
 layout_mode = 2
 
 [node name="HBoxContainer" type="HBoxContainer" parent="VBox/TopPanel" unique_id=36416076]
@@ -91,20 +91,35 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 12
 text = "Export SKF Tint Mode"
 
-[node name="ZoomLabel" type="Label" parent="VBox/TopPanel" unique_id=579975642]
+[node name="UISize" type="HBoxContainer" parent="VBox/TopPanel/HBoxContainer" unique_id=450066328]
+layout_mode = 2
+size_flags_horizontal = 10
+
+[node name="UIScale" type="Label" parent="VBox/TopPanel/HBoxContainer/UISize" unique_id=704887608]
 unique_name_in_owner = true
-layout_mode = 1
-anchors_preset = 6
-anchor_left = 1.0
-anchor_top = 0.5
-anchor_right = 1.0
-anchor_bottom = 0.5
-offset_left = -100.0
-offset_top = -11.5
-offset_bottom = 11.5
-grow_horizontal = 0
-grow_vertical = 2
-text = "Zoom 100%"
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+theme_override_font_sizes/font_size = 14
+text = "UI Scale 100%"
+vertical_alignment = 1
+
+[node name="UIScaleUp" type="Button" parent="VBox/TopPanel/HBoxContainer/UISize" unique_id=2112411639]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(26, 24)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 14
+text = "+"
+
+[node name="UIScaleDown" type="Button" parent="VBox/TopPanel/HBoxContainer/UISize" unique_id=842771798]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(26, 24)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 14
+text = "-"
 
 [node name="HBox" type="HBoxContainer" parent="VBox" unique_id=1999195460]
 layout_mode = 2
@@ -195,6 +210,7 @@ layout_mode = 2
 columns = 2
 
 [node name="Label" type="Label" parent="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer3/Grid" unique_id=2075041423]
+custom_minimum_size = Vector2(0, 25)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
@@ -210,7 +226,25 @@ size_flags_vertical = 3
 theme_override_font_sizes/font_size = 14
 text_overrun_behavior = 3
 
+[node name="Label3" type="Label" parent="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer3/Grid" unique_id=1117328539]
+custom_minimum_size = Vector2(0, 25)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 14
+text = "Root Anim Sprite:"
+vertical_alignment = 1
+
+[node name="RootAnimaSprite" type="OptionButton" parent="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer3/Grid" unique_id=1601784831]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 14
+text_overrun_behavior = 3
+
 [node name="Label2" type="Label" parent="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer3/Grid" unique_id=608447942]
+custom_minimum_size = Vector2(0, 25)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
@@ -294,6 +328,42 @@ layout_mode = 2
 expand_mode = 1
 stretch_mode = 5
 
+[node name="HBoxContainer" type="HBoxContainer" parent="VBox/HBox/Control" unique_id=458511941]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -90.0
+offset_top = -23.0
+grow_horizontal = 0
+grow_vertical = 0
+
+[node name="ZoomLabel" type="Label" parent="VBox/HBox/Control/HBoxContainer" unique_id=579975642]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 1
+theme_override_font_sizes/font_size = 14
+text = "Zoom 100%"
+vertical_alignment = 1
+
+[node name="CamZoomIn" type="Button" parent="VBox/HBox/Control/HBoxContainer" unique_id=1119162627]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(26, 26)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 14
+text = "+"
+
+[node name="CamZoomOut" type="Button" parent="VBox/HBox/Control/HBoxContainer" unique_id=1683833117]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(26, 26)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 14
+text = "-"
+
 [node name="FileDialog" type="FileDialog" parent="." unique_id=62517865]
 unique_name_in_owner = true
 title = "Open a File"
@@ -316,15 +386,20 @@ use_native_dialog = true
 [connection signal="pressed" from="VBox/TopPanel/HBoxContainer/SaveSVG" to="GenScriptGD" method="_on_save_svg_pressed"]
 [connection signal="pressed" from="VBox/TopPanel/HBoxContainer/SaveSKF" to="GenScriptGD" method="_on_save_skf_pressed"]
 [connection signal="pressed" from="VBox/TopPanel/HBoxContainer/SaveSKFTintMode" to="GenScriptGD" method="_on_save_svg_pressed"]
+[connection signal="pressed" from="VBox/TopPanel/HBoxContainer/UISize/UIScaleUp" to="GenScriptGD" method="_on_ui_scale_up_pressed"]
+[connection signal="pressed" from="VBox/TopPanel/HBoxContainer/UISize/UIScaleDown" to="GenScriptGD" method="_on_ui_scale_down_pressed"]
 [connection signal="pressed" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid/ReGenPoly" to="GenScriptGD" method="_on_re_gen_poly_pressed"]
 [connection signal="pressed" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid/Reload" to="GenScriptGD" method="_on_reload_pressed"]
 [connection signal="toggled" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid/HoleDetection" to="GenExport" method="_on_hole_detection_toggled"]
 [connection signal="toggled" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid/DebugLines" to="GenScriptGD" method="_on_debug_lines_toggled"]
 [connection signal="value_changed" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer2/Grid/SmoothIteration" to="GenScriptGD" method="_on_smooth_iteration_value_changed"]
 [connection signal="item_selected" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer3/Grid/Animations" to="GenScriptGD" method="_on_animations_item_selected"]
+[connection signal="item_selected" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer3/Grid/RootAnimaSprite" to="GenScriptGD" method="_on_root_anima_sprite_item_selected"]
 [connection signal="value_changed" from="VBox/HBox/LeftPanel/Margin/VBox2/PanelContainer3/Grid/FPS" to="GenScriptGD" method="_on_fps_value_changed"]
 [connection signal="item_selected" from="VBox/HBox/LeftPanel/Margin/VBox2/Tree" to="GenScriptGD" method="_on_tree_item_selected"]
 [connection signal="mouse_entered" from="VBox/HBox/Control" to="GenScriptGD" method="_on_control_mouse_entered"]
 [connection signal="mouse_exited" from="VBox/HBox/Control" to="GenScriptGD" method="_on_control_mouse_exited"]
+[connection signal="pressed" from="VBox/HBox/Control/HBoxContainer/CamZoomIn" to="GenScriptGD" method="_on_cam_zoom_in_pressed"]
+[connection signal="pressed" from="VBox/HBox/Control/HBoxContainer/CamZoomOut" to="GenScriptGD" method="_on_cam_zoom_out_pressed"]
 [connection signal="file_selected" from="FileDialog" to="GenScriptGD" method="_on_file_dialog_file_selected"]
 [connection signal="dir_selected" from="ExportDialog" to="GenScriptGD" method="_on_export_dialog_dir_selected"]
