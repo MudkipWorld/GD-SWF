@@ -18,14 +18,12 @@ public class SwfDefinitionManager
     public Dictionary<int, List<dynamic>> ShapeDict { get; } = new();
     public Dictionary<int, string> SymbolNames { get; } = new();
 
-    public SwfDefinitionManager(SwfFile swf)
-    {
+    public SwfDefinitionManager(SwfFile swf){
         if (swf == null) return;
         RecurseDefinitions(swf.Tags);
     }
 
-    private void RecurseDefinitions(IEnumerable<SwfTagBase> tags)
-    {
+    private void RecurseDefinitions(IEnumerable<SwfTagBase> tags){
         foreach (var tag in tags)
         {
             switch (tag)
@@ -49,8 +47,7 @@ public class SwfDefinitionManager
         }
     }
 
-    private void AddShape(dynamic shape)
-    {
+    private void AddShape(dynamic shape){
         int id = shape.ShapeID;
         if (!ShapeDict.TryGetValue(id, out var list)) ShapeDict[id] = list = new List<dynamic>();
         list.Add(shape);

@@ -32,22 +32,6 @@ public static class ShapeProcessor{
         var fillEdges = new Dictionary<(int tableId, int fillIndex), List<Edge>>();
         var strokeEdges = new Dictionary<(int tableId, int lineIndex), List<Edge>>();
 
-        void AddFillEdge(int table, int? fill, Edge e){
-            if (!fill.HasValue) return;
-            var key = (table, fill.Value);
-            if (!fillEdges.TryGetValue(key, out var list))
-                fillEdges[key] = list = new List<Edge>();
-            list.Add(e);
-        }
-
-        void AddStrokeEdge(int table, int? line, Edge e){
-            if (!line.HasValue) return;
-            var key = (table, line.Value);
-            if (!strokeEdges.TryGetValue(key, out var list))
-                strokeEdges[key] = list = new List<Edge>();
-            list.Add(e);
-        }
-
         foreach (var record in shapeTag.ShapeRecords){
             switch (record)
             {
@@ -84,9 +68,9 @@ public static class ShapeProcessor{
                             y + s.DeltaY * TWIPS_TO_PIXELS
                         );
 
-                        AddFillEdge(styleTableId, fill1, new Edge { Start = start, End = end });
-                        AddFillEdge(styleTableId, fill0, new Edge { Start = end, End = start });
-                        AddStrokeEdge(styleTableId, lineStyle, new Edge { Start = start, End = end });
+                        AddFillEdge(styleTableId, fill1, new Edge { Start = start, End = end }, fillEdges);
+                        AddFillEdge(styleTableId, fill0, new Edge { Start = end, End = start }, fillEdges);
+                        AddStrokeEdge(styleTableId, lineStyle, new Edge { Start = start, End = end }, strokeEdges);
 
                         x = end.X;
                         y = end.Y;
@@ -105,9 +89,9 @@ public static class ShapeProcessor{
                             ctrl.Y + c.AnchorDeltaY * TWIPS_TO_PIXELS
                         );
 
-                        AddFillEdge(styleTableId, fill1, new Edge { Start = start, Control = ctrl, End = end });
-                        AddFillEdge(styleTableId, fill0, new Edge { Start = end, Control = ctrl, End = start });
-                        AddStrokeEdge(styleTableId, lineStyle, new Edge { Start = start, Control = ctrl, End = end });
+                        AddFillEdge(styleTableId, fill1, new Edge { Start = start, Control = ctrl, End = end }, fillEdges);
+                        AddFillEdge(styleTableId, fill0, new Edge { Start = end, Control = ctrl, End = start }, fillEdges);
+                        AddStrokeEdge(styleTableId, lineStyle, new Edge { Start = start, Control = ctrl, End = end }, strokeEdges);
 
                         x = end.X;
                         y = end.Y;
@@ -252,6 +236,21 @@ public static class ShapeProcessor{
         return loops;
     }
 
+    private static void AddFillEdge(int table, int? fill, Edge e, Dictionary<(int tableId, int fillIndex), List<Edge>> fillEdges){
+        if (!fill.HasValue) return;
+        var key = (table, fill.Value);
+        if (!fillEdges.TryGetValue(key, out var list))
+            fillEdges[key] = list = new List<Edge>();
+        list.Add(e);
+    }
+
+    private static void AddStrokeEdge(int table, int? line, Edge e, Dictionary<(int tableId, int lineIndex), List<Edge>> strokeEdges){
+        if (!line.HasValue) return;
+        var key = (table, line.Value);
+        if (!strokeEdges.TryGetValue(key, out var list))
+            strokeEdges[key] = list = new List<Edge>();
+        list.Add(e);
+    }
 
     public static string ShapeToSvg(ShapeData shape)
         {

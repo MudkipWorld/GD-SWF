@@ -37,7 +37,7 @@ func _physics_process(delta):
 
 	if frame_timer >= frame_len:
 		frame_timer -= frame_len
-		advance_frames(frame_len)
+		advance_frames()
 		advance_children(animated_sprite_id, frame_len)
 		queue_redraw()
 
@@ -47,7 +47,7 @@ func _draw():
 		return
 	draw_sprite_recursive(0, Transform2D.IDENTITY.scaled(draw_scale).translated(model_placement))
 
-func advance_frames(dt):
+func advance_frames():
 	var sp_id = animated_sprite_id
 	if !sprites.has(sp_id):
 		return
@@ -94,14 +94,13 @@ func advance_children(sprite_id, dt):
 					child_visible = true
 					break
 
-			if not child_visible:
-				# Reset frame and timer if invisible
+			if !child_visible:
 				sprite_frame_timers[child.id] = 0.0
 				sprite_current_anim_frame[child.id] = 0
 				sprite_current_frames[child.id] = 0
+				
 			else:
-				# Advance normally
-				if not sprite_frame_timers.has(child.id):
+				if !sprite_frame_timers.has(child.id):
 					sprite_frame_timers[child.id] = 0.0
 				sprite_frame_timers[child.id] += dt
 
@@ -124,7 +123,6 @@ func advance_children(sprite_id, dt):
 						sprite_current_anim_frame[child.id] = current
 						sprite_current_frames[child.id] = anim_frames[current]
 				else:
-					# fallback to raw frames
 					while sprite_frame_timers[child.id] >= 1.0/fps:
 						sprite_frame_timers[child.id] -= 1.0/fps
 						var current = int(sprite_current_frames.get(child.id, 0)) + 1
@@ -132,9 +130,7 @@ func advance_children(sprite_id, dt):
 							current = 0
 						sprite_current_frames[child.id] = current
 
-		# Recurse into children
 		advance_children(child.id, dt)
-
 
 func fall_back_advance_frames(root : SWFClasses.SWFSprite = null):
 	if root == null:

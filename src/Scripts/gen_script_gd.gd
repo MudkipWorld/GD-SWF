@@ -23,7 +23,11 @@ var selected_shape : SWFClasses.SWFShape = null
 # Loading data from selected file.
 func load_path(path : String = ""):
 	if !FileAccess.file_exists(path) : return
-	loaded_data = gen.LoadSwf(path, baked_data)
+	var dummy = gen.LoadSwf(path, baked_data)
+	if dummy == null:
+		printerr("Corrupt Load.")
+		return
+	loaded_data = dummy
 	#var stage_size = loaded_data.get("SceneSize", { "Width": 300, "Height": 300 })
 	#%GenExport.stage_size = Vector2(stage_size["Width"], stage_size["Height"])
 	

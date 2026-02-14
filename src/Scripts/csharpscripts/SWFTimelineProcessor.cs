@@ -49,28 +49,6 @@ public static class TimelineProcessor{
         var firstFrameData = new Dictionary<int, FrameTag>();
         int currentFrameIndex = 0;
 
-        FrameTag CloneFrameTag(FrameTag source)
-        {
-            if (source == null) return null;
-            return new FrameTag
-            {
-                SymbolID = source.SymbolID,
-                Depth = source.Depth,
-                X = source.X,
-                Y = source.Y,
-                ScaleX = source.ScaleX,
-                ScaleY = source.ScaleY,
-                Rotation = source.Rotation,
-                TransformMatrix = source.TransformMatrix != null ? (float[])source.TransformMatrix.Clone() : null,
-                Visible = source.Visible,
-                IsDirty = source.IsDirty,
-                EffectiveColor = source.EffectiveColor,
-                ColorTransform = source.ColorTransform,
-                ColorTransformRGBA = source.ColorTransformRGBA,
-                HasAnimatedColor = source.HasAnimatedColor
-            };
-        }
-
         foreach (var tag in tags)
         {
             switch (tag)
@@ -407,6 +385,29 @@ public static class TimelineProcessor{
 
         return maxChildDepth;
     }
+
+
+   private static  FrameTag CloneFrameTag(FrameTag source){
+        if (source == null) return null;
+        return new FrameTag
+        {
+            SymbolID = source.SymbolID,
+            Depth = source.Depth,
+            X = source.X,
+            Y = source.Y,
+            ScaleX = source.ScaleX,
+            ScaleY = source.ScaleY,
+            Rotation = source.Rotation,
+            TransformMatrix = source.TransformMatrix != null ? (float[])source.TransformMatrix.Clone() : null,
+            Visible = source.Visible,
+            IsDirty = source.IsDirty,
+            EffectiveColor = source.EffectiveColor,
+            ColorTransform = source.ColorTransform,
+            ColorTransformRGBA = source.ColorTransformRGBA,
+            HasAnimatedColor = source.HasAnimatedColor
+        };
+    }
+
 
     private static float Distance(Vector2 a, Vector2 b){
         return (a - b).Length();
