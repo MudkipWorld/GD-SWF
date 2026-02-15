@@ -15,154 +15,176 @@ using System.IO;
 public static class TimelineProcessor{
     private const float TWIPS_TO_PIXELS = 1f / 20f;
     
-    public static SpriteExportData ProcessTimeline(IEnumerable<SwfTagBase> tags, SwfDefinitionManager defs, bool bakeFrames = true, int? spriteID = null){
-        var displayList = new Dictionary<int, FrameTag>();
-        var frames = new List<Dictionary<int, FrameTag>>();
-        var children = new List<ChildInfo>();
-        var frameNames = new List<string>();
-        string pendingLabel = null;
+public static SpriteExportData ProcessTimeline(IEnumerable<SwfTagBase> tags, SwfDefinitionManager defs, bool bakeFrames = true, int? spriteID = null)
+{
+    var displayList = new Dictionary<int, FrameTag>();
+    var frames = new List<Dictionary<int, FrameTag>>();
+    var children = new List<ChildInfo>();
+    var frameNames = new List<string>();
+    string pendingLabel = null;
 
-        var labelCounts = new Dictionary<string, int>();
-        var removedDepths = new HashSet<int>();
-        Dictionary<int, FrameTag> lastFrame = null;
+    var labelCounts = new Dictionary<string, int>();
+    var removedDepths = new HashSet<int>();
+    Dictionary<int, FrameTag> lastFrame = null;
 
-        float localX = 0f;
-        float localY = 0f;
+    float localX = 0f;
+    float localY = 0f;
 
-        var spriteTag = tags.OfType<DefineSpriteTag>().FirstOrDefault();
+    var spriteTag = tags.OfType<DefineSpriteTag>().FirstOrDefault();
 
-        var sprite_name = "";
-        if (spriteID.HasValue && defs.SymbolNames.TryGetValue(spriteID.Value, out var n))
-            sprite_name = n;
+    var sprite_name = "";
+    if (spriteID.HasValue && defs.SymbolNames.TryGetValue(spriteID.Value, out var n))
+        sprite_name = n;
 
-        if (spriteTag != null)
+    if (spriteTag != null)
+    {
+        var locals = GetSpriteLocalPositions(spriteTag);
+        if (locals.Count > 0)
         {
-            var locals = GetSpriteLocalPositions(spriteTag);
-            if (locals.Count > 0)
-            {
-                var first = locals.First().Value;
-                localX = first.X;
-                localY = first.Y;
-            }
+            var first = locals.First().Value;
+            localX = first.X;
+            localY = first.Y;
         }
-
-        var firstFrameData = new Dictionary<int, FrameTag>();
-        int currentFrameIndex = 0;
-
-        foreach (var tag in tags)
-        {
-            switch (tag)
-            {
-                case FrameLabelTag labelTag:
-                    string name = labelTag.Name;
-                    if (!string.IsNullOrEmpty(name))
-                    {
-                        if (labelCounts.ContainsKey(name))
-                        {
-                            labelCounts[name]++;
-                            name += labelCounts[name];
-                        }
-                        else
-                            labelCounts[name] = 1;
-
-                        pendingLabel = string.IsNullOrEmpty(pendingLabel) ? name : pendingLabel + ", " + name;
-                    }
-                    break;
-
-                case ShowFrameTag:
-                    var frameDict = new Dictionary<int, FrameTag>();
-                    bool isAnimationStart = !bakeFrames && !string.IsNullOrEmpty(pendingLabel);
-
-                    foreach (var kvp in displayList)
-                    {
-                        var f = kvp.Value;
-                        var clone = CloneFrameTag(f);
-                        if (!firstFrameData.ContainsKey(f.SymbolID))
-                            firstFrameData[f.SymbolID] = CloneFrameTag(f);
-
-                        if (bakeFrames || f.IsDirty || isAnimationStart)
-                            frameDict[kvp.Key] = clone;
-                    }
-
-                    if (!bakeFrames && lastFrame != null)
-                    {
-                        foreach (var kvp in lastFrame)
-                        {
-                            int depth = kvp.Key;
-                            if (removedDepths.Contains(depth)) continue;
-                            if (!frameDict.ContainsKey(depth))
-                            {
-                                var carryover = CloneFrameTag(kvp.Value);
-                                frameDict[depth] = carryover;
-                                if (!firstFrameData.ContainsKey(carryover.SymbolID))
-                                    firstFrameData[carryover.SymbolID] = CloneFrameTag(carryover);
-                            }
-                        }
-                    }
-
-                    frames.Add(frameDict);
-                    frameNames.Add(pendingLabel);
-                    pendingLabel = null;
-                    removedDepths.Clear();
-
-                    lastFrame = frameDict
-                        .Where(kvp => kvp.Value.Visible)
-                        .ToDictionary(k => k.Key, k => CloneFrameTag(k.Value));
-
-                    currentFrameIndex++;
-                    break;
-
-                case PlaceObjectTag p1:
-                    UpdateDisplayObject(displayList, children,p1.CharacterID, p1.Depth, p1.Matrix, true, true, null,defs);
-                    break;
-
-                case PlaceObject2Tag p2:
-                    int symbolId = p2.HasCharacter ? p2.CharacterID :
-                                displayList.TryGetValue(p2.Depth, out var existing) ? existing.SymbolID : 0;
-
-                    bool isNewEntry = p2.HasCharacter || !displayList.ContainsKey(p2.Depth);
-                    object ct = p2.HasColorTransform ? (object)p2.ColorTransform : null;
-
-                    UpdateDisplayObject(displayList, children, symbolId, p2.Depth, p2.Matrix, isNewEntry, p2.HasMatrix, ct, defs);
-                    break;
-                case PlaceObject3Tag p2:
-                    symbolId = p2.HasCharacter ? p2.CharacterID :
-                                displayList.TryGetValue(p2.Depth, out existing) ? existing.SymbolID : 0;
-
-                    isNewEntry = p2.HasCharacter || !displayList.ContainsKey(p2.Depth);
-                    ct = p2.HasColorTransform ? (object)p2.ColorTransform : null;
-
-                    UpdateDisplayObject(displayList, children, symbolId, p2.Depth, p2.Matrix, isNewEntry, p2.HasMatrix, ct, defs);
-                    break;
-
-                case RemoveObjectTag r:
-                    removedDepths.Add(r.Depth);
-                    displayList.Remove(r.Depth);
-                    break;
-
-                case RemoveObject2Tag r:
-                    removedDepths.Add(r.Depth);
-                    displayList.Remove(r.Depth);
-                    break;
-            }
-
-        }
-
-        var spriteData = new SpriteExportData
-        {
-            Children = children,
-            Frames = frames,
-            FrameNames = frameNames,
-            LocalX = localX,
-            LocalY = localY,
-            FirstFrameData = firstFrameData,
-            SpriteName = sprite_name
-        };
-
-        spriteData.MaxNestingDepth = ComputeSpriteDepth(spriteTag?.SpriteID ?? 0, defs);
-
-        return spriteData;
     }
+
+    var firstFrameData = new Dictionary<int, FrameTag>();
+    int currentFrameIndex = 0;
+
+
+    var bakedTimeline = new Dictionary<int, Dictionary<int, FrameTag>>();
+
+    foreach (var tag in tags)
+    {
+        switch (tag)
+        {
+            case FrameLabelTag labelTag:
+                string name = labelTag.Name;
+                if (!string.IsNullOrEmpty(name))
+                {
+                    if (labelCounts.ContainsKey(name))
+                    {
+                        labelCounts[name]++;
+                        name += labelCounts[name];
+                    }
+                    else
+                        labelCounts[name] = 1;
+
+                    pendingLabel = string.IsNullOrEmpty(pendingLabel) ? name : pendingLabel + ", " + name;
+                }
+                break;
+
+            case ShowFrameTag:
+                var frameDict = new Dictionary<int, FrameTag>();
+                bool isAnimationStart = !bakeFrames && !string.IsNullOrEmpty(pendingLabel);
+
+                foreach (var kvp in displayList)
+                {
+                    var f = kvp.Value;
+                    var clone = CloneFrameTag(f);
+                    if (!firstFrameData.ContainsKey(f.SymbolID))
+                        firstFrameData[f.SymbolID] = CloneFrameTag(f);
+
+                    if (bakeFrames || f.IsDirty || isAnimationStart)
+                        frameDict[kvp.Key] = clone;
+                }
+
+    
+                if (!bakeFrames && lastFrame != null)
+                {
+                    foreach (var kvp in lastFrame)
+                    {
+                        int depth = kvp.Key;
+                        if (removedDepths.Contains(depth)) continue;
+                        if (!frameDict.ContainsKey(depth))
+                        {
+                            var carryover = CloneFrameTag(kvp.Value);
+                            frameDict[depth] = carryover;
+                            if (!firstFrameData.ContainsKey(carryover.SymbolID))
+                                firstFrameData[carryover.SymbolID] = CloneFrameTag(carryover);
+                        }
+                    }
+                }
+
+                frames.Add(frameDict);
+                frameNames.Add(pendingLabel);
+                pendingLabel = null;
+                removedDepths.Clear();
+
+                var bakedFrame = new Dictionary<int, FrameTag>();
+                foreach (var kvp in frameDict)
+                {
+                    bakedFrame[kvp.Key] = CloneFrameTag(kvp.Value);
+                }
+                bakedTimeline[currentFrameIndex] = bakedFrame;
+
+                lastFrame = frameDict
+                    .Where(kvp => kvp.Value.Visible)
+                    .ToDictionary(k => k.Key, k => CloneFrameTag(k.Value));
+
+                currentFrameIndex++;
+                break;
+
+            case PlaceObjectTag p1:
+                UpdateDisplayObject(displayList, children, p1.CharacterID, p1.Depth, p1.Matrix, true, true, null, defs);
+                break;
+
+            case PlaceObject2Tag p2:
+                int symbolId2 = p2.HasCharacter ? p2.CharacterID :
+                                displayList.TryGetValue(p2.Depth, out var existing2) ? existing2.SymbolID : 0;
+                bool isNewEntry2 = p2.HasCharacter || !displayList.ContainsKey(p2.Depth);
+                object ct2 = p2.HasColorTransform ? (object)p2.ColorTransform : null;
+                UpdateDisplayObject(displayList, children, symbolId2, p2.Depth, p2.Matrix, isNewEntry2, p2.HasMatrix, ct2, defs);
+                break;
+
+            case PlaceObject3Tag p3:
+                int symbolId3 = p3.HasCharacter ? p3.CharacterID :
+                                displayList.TryGetValue(p3.Depth, out var existing3) ? existing3.SymbolID : 0;
+                bool isNewEntry3 = p3.HasCharacter || !displayList.ContainsKey(p3.Depth);
+                object ct3 = p3.HasColorTransform ? (object)p3.ColorTransform : null;
+                UpdateDisplayObject(displayList, children, symbolId3, p3.Depth, p3.Matrix, isNewEntry3, p3.HasMatrix, ct3, defs);
+                break;
+
+            case RemoveObjectTag r:
+                removedDepths.Add(r.Depth);
+                displayList.Remove(r.Depth);
+                break;
+
+            case RemoveObject2Tag r2:
+                removedDepths.Add(r2.Depth);
+                displayList.Remove(r2.Depth);
+                break;
+        }
+    }
+
+    foreach (var frameEntry in bakedTimeline)
+    {
+        var frameIdx = frameEntry.Key;
+        var frameDict = frameEntry.Value;
+
+        var allDepths = frameDict.Keys.ToList();
+        foreach (var kvp in frameDict)
+        {
+            var fTag = kvp.Value;
+            if (!fTag.Visible)
+                fTag.Visible = true;
+        }
+    }
+
+    var spriteData = new SpriteExportData
+    {
+        Children = children,
+        Frames = frames,
+        FrameNames = frameNames,
+        LocalX = localX,
+        LocalY = localY,
+        FirstFrameData = firstFrameData,
+        SpriteName = sprite_name,
+    };
+
+    spriteData.MaxNestingDepth = ComputeSpriteDepth(spriteTag?.SpriteID ?? 0, defs);
+
+    return spriteData;
+}
 
 
     private static void UpdateDisplayObject(Dictionary<int, FrameTag> displayList, List<ChildInfo> children, int characterId, int depth, SwfMatrix matrix, bool hasCharacter, bool hasMatrix, object colorTransform = null, SwfDefinitionManager defs = null){
@@ -248,6 +270,8 @@ public static class TimelineProcessor{
             });
 
         }
+
+
 
     private static Color getEffectiveColor(object colorTransform = null, FrameTag frame = null)
     {
@@ -369,7 +393,7 @@ public static class TimelineProcessor{
         if (visited.Contains(spriteID)) return 0;
         visited.Add(spriteID);
 
-        if (!defs.SpriteDict.TryGetValue(spriteID, out var sprite)) return 0;
+        if (!defs.SpriteDict.TryGetValue(spriteID, out var sprite)) return 1;
 
         int maxChildDepth = 0;
 
@@ -384,6 +408,10 @@ public static class TimelineProcessor{
                 case PlaceObject2Tag p2:
                     if (p2.HasCharacter && defs.SpriteDict.ContainsKey(p2.CharacterID))
                         maxChildDepth = Math.Max(maxChildDepth, 1 + ComputeSpriteDepth(p2.CharacterID, defs, new HashSet<int>(visited)));
+                    break;
+                case PlaceObject3Tag p3:
+                    if (p3.HasCharacter && defs.SpriteDict.ContainsKey(p3.CharacterID))
+                        maxChildDepth = Math.Max(maxChildDepth, 1 + ComputeSpriteDepth(p3.CharacterID, defs, new HashSet<int>(visited)));
                     break;
             }
         }
