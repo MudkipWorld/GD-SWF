@@ -109,12 +109,26 @@ public static class ShapeProcessor{
                 continue;
 
             var fillStyle = fillStyles[fillIndex];
-            var color = GetGradientStartColor(fillStyle);
+
+            bool isGrad = IsGradient(fillStyle);
+        
+            var color = new Color(1.0f, 1.0f, 1.0f, 1.0f);
 
             foreach (var loop in BuildLoops(kvp.Value))
             {
                 var sub = new SubPath { FillColor = color };
                 shapeData.SubPaths.Add(sub);
+
+                if (isGrad)
+                {
+                    sub.Gradient = GetGradientInfo(fillStyle);
+                    sub.FillColor = new Color(sub.Gradient.Stops[0].Color.R, sub.Gradient.Stops[0].Color.G, sub.Gradient.Stops[0].Color.B, 1.0f);
+                }
+                else
+                {
+                    sub.FillColor = getFillColor(fillStyle);
+                }
+
 
                 bool first = true;
                 foreach (var e in loop)
@@ -208,6 +222,16 @@ public static class ShapeProcessor{
         }
 
         return shapeData;
+    }
+
+    public static bool IsGradient(object fillStyle)
+    {
+        return fillStyle is SwfLib.Shapes.FillStyles.LinearGradientFillStyleRGB ||
+            fillStyle is SwfLib.Shapes.FillStyles.LinearGradientFillStyleRGBA ||
+            fillStyle is SwfLib.Shapes.FillStyles.RadialGradientFillStyleRGB ||
+            fillStyle is SwfLib.Shapes.FillStyles.RadialGradientFillStyleRGBA ||
+            fillStyle is SwfLib.Shapes.FillStyles.FocalGradientFillStyleRGB ||
+            fillStyle is SwfLib.Shapes.FillStyles.FocalGradientFillStyleRGBA;
     }
 
     public static  List<List<Edge>> BuildLoops(List<Edge> edges){
@@ -328,25 +352,10 @@ public static class ShapeProcessor{
             return sb.ToString();
         }
 
-    public static Color GetGradientStartColor(dynamic fillStyle) {
+    public static Color getFillColor(dynamic fillStyle) {
+
             switch (fillStyle)
             {
-                case SwfLib.Shapes.FillStyles.LinearGradientFillStyleRGB linear:
-                    var first = linear.Gradient.GradientRecords[0];
-                    return new Color(first.Color.Red / 255f, first.Color.Green / 255f, first.Color.Blue / 255f, 1.0f);
-
-                case SwfLib.Shapes.FillStyles.RadialGradientFillStyleRGB radial:
-                    var firstR = radial.Gradient.GradientRecords[0];
-                    return new Color(firstR.Color.Red / 255f, firstR.Color.Green / 255f, firstR.Color.Blue / 255f, 1.0f);
-
-                case SwfLib.Shapes.FillStyles.LinearGradientFillStyleRGBA linearR:
-                    var firstLR = linearR.Gradient.GradientRecords[0];
-                    return new Color(firstLR.Color.Red / 255f, firstLR.Color.Green / 255f, firstLR.Color.Blue / 255f, firstLR.Color.Alpha / 255f);
-
-                case SwfLib.Shapes.FillStyles.RadialGradientFillStyleRGBA radialR:
-                    var firstRR = radialR.Gradient.GradientRecords[0];
-                    return new Color(firstRR.Color.Red / 255f, firstRR.Color.Green / 255f, firstRR.Color.Blue / 255f, firstRR.Color.Alpha / 255f);
-
                 case SwfLib.Shapes.FillStyles.SolidFillStyleRGB rgb:
                     return new Color(rgb.Color.Red / 255f, rgb.Color.Green / 255f, rgb.Color.Blue / 255f, 1f);
 
@@ -357,6 +366,81 @@ public static class ShapeProcessor{
                     return new Color(1, 1, 1, 1);
             }
         }
+
+    public static GradientInfo GetGradientInfo(dynamic fillStyle)
+    {
+        GradientInfo info = new GradientInfo();
+        info.Stops = new List<GradientStop>();
+
+        Transform2D mat;
+        Vector2 start, end;
+
+        switch (fillStyle)
+        {
+            case SwfLib.Shapes.FillStyles.LinearGradientFillStyleRGB linear:
+                mat = linear.GradientMatrix.ToGodotTransform();
+
+                foreach (var rec in linear.Gradient.GradientRecords)                
+                {
+                    Color color = new Color(rec.Color.Red / 255f, rec.Color.Green / 255f, rec.Color.Blue / 255f, 1f);
+                    //GD.Print(color);
+                    info.Stops.Add(new GradientStop
+                    {
+                        Offset = rec.Ratio / 255f,
+                        Color = color
+                    });
+                }
+
+                start = mat.BasisXform(new Vector2(0, 0));
+                end = mat.BasisXform(new Vector2(16384, 0));
+
+                // Convert twips → pixels
+                info.X1 = start.X / 20f;
+                info.Y1 = start.Y / 20f;
+                info.X2 = end.X / 20f;
+                info.Y2 = end.Y / 20f;
+                break;
+
+            case SwfLib.Shapes.FillStyles.LinearGradientFillStyleRGBA linearR:
+                mat = linearR.GradientMatrix.ToGodotTransform();
+
+                foreach (var rec in linearR.Gradient.GradientRecords)
+                {
+                    Color color = new Color(rec.Color.Red / 255f, rec.Color.Green / 255f, rec.Color.Blue / 255f, rec.Color.Alpha / 255f);
+                    //GD.Print(color);
+                    info.Stops.Add(new GradientStop
+                    {
+                        Offset = rec.Ratio / 255f,
+                        Color = color
+                    });
+                }
+
+                start = mat.BasisXform(new Vector2(0, 0));
+                end = mat.BasisXform(new Vector2(16384, 0));
+
+                info.X1 = start.X / 20f;
+                info.Y1 = start.Y / 20f;
+                info.X2 = end.X / 20f;
+                info.Y2 = end.Y / 20f;
+                break;
+
+            default:
+                return null;
+        }
+
+        return info;
+    }
+
+    public static Transform2D ToGodotTransform(this SwfMatrix m)
+    {
+        return new Transform2D(
+            (float)m.ScaleX, (float)m.RotateSkew0, m.TranslateX / 20f,
+            (float)m.RotateSkew1, (float)m.ScaleY, m.TranslateY / 20f
+        );
+    }
+
+
+
 }
 
 

@@ -237,7 +237,21 @@ public static class TimelineProcessor{
             };
         }
 
-        frame.HasAnimatedColor = colorTransform != null;
+        frame.EffectiveColor = getEffectiveColor(colorTransform, frame);
+
+        displayList[depth] = frame;
+
+        if (!children.Any(c => c.ID == characterId))
+            children.Add(new ChildInfo {
+                ID = characterId,
+                Type = defs.SpriteDict.ContainsKey(characterId) ? "Sprite" : "Shape"
+            });
+
+        }
+
+    private static Color getEffectiveColor(object colorTransform = null, FrameTag frame = null)
+    {
+        Color finalColor = new Color(1, 1, 1, 1);
 
         Color baseColor = new Color(1, 1, 1, 1);
 
@@ -255,7 +269,7 @@ public static class TimelineProcessor{
                 bMult = rgba.BlueMultTerm / 255f;
                 aMult = rgba.AlphaMultTerm / 255f;
 
-                frame.EffectiveColor = new Color(
+                finalColor = new Color(
                     baseColor.R * rMult ,
                     baseColor.G * gMult,
                     baseColor.B * bMult,
@@ -265,7 +279,7 @@ public static class TimelineProcessor{
             else
             {
                 
-                frame.EffectiveColor = new Color(
+                finalColor = new Color(
                     baseColor.R,
                     baseColor.G,
                     baseColor.B,
@@ -300,7 +314,7 @@ public static class TimelineProcessor{
                 rMult = rgb.RedMultTerm / 255f;
                 gMult = rgb.GreenMultTerm / 255f;
                 bMult = rgb.BlueMultTerm / 255f;
-                frame.EffectiveColor = new Color(
+                finalColor = new Color(
                     baseColor.R * rMult,
                     baseColor.G * gMult,
                     baseColor.B * bMult,
@@ -310,7 +324,7 @@ public static class TimelineProcessor{
             else
             {
                 
-                frame.EffectiveColor = new Color(
+                finalColor = new Color(
                     baseColor.R,
                     baseColor.G,
                     baseColor.B,
@@ -331,21 +345,12 @@ public static class TimelineProcessor{
         }
         else
         {
-            frame.EffectiveColor = baseColor;
+            finalColor = baseColor;
         }
 
 
-
-        displayList[depth] = frame;
-
-        if (!children.Any(c => c.ID == characterId))
-            children.Add(new ChildInfo {
-                ID = characterId,
-                Type = defs.SpriteDict.ContainsKey(characterId) ? "Sprite" : "Shape"
-            });
-
-
-        }
+        return finalColor;
+    }
 
     private static  bool MatrixEquals(float[] a, float[] b){
         if (a == null || b == null) return false;
@@ -386,7 +391,6 @@ public static class TimelineProcessor{
         return maxChildDepth;
     }
 
-
    private static  FrameTag CloneFrameTag(FrameTag source){
         if (source == null) return null;
         return new FrameTag
@@ -406,11 +410,6 @@ public static class TimelineProcessor{
             ColorTransformRGBA = source.ColorTransformRGBA,
             HasAnimatedColor = source.HasAnimatedColor
         };
-    }
-
-
-    private static float Distance(Vector2 a, Vector2 b){
-        return (a - b).Length();
     }
 
     private static Dictionary<int, Vector2> GetSpriteLocalPositions(DefineSpriteTag sprite){

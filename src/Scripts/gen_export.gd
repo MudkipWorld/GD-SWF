@@ -8,7 +8,6 @@ var skf_export_folder : String = "user://SKFExports/"
 var use_fallback : bool = false
 var hollow_pieces : bool = false
 
-
 #region Json Stuff
 # -- Json import/ export
 func parse_json(data: Dictionary, player : SWFPlayer, smooth : int = 5) -> Array:
@@ -465,12 +464,14 @@ func create_texture_atlas(player: SWFPlayer) -> Dictionary:
 #endregion
 
 #region Misc import/ export
-func export_all_svgs(player : SWFPlayer):
+func export_all_svgs(shapes : Dictionary = {}):
+	if shapes.is_empty(): return
 	if !DirAccess.dir_exists_absolute(svg_export_folder):
 		DirAccess.make_dir_absolute(svg_export_folder)
-	for shape_id in player.shapes.keys():
-		var shape : SWFClasses.SWFShape = player.shapes[shape_id]
+	for shape_id in shapes.keys():
+		var shape  = shapes[shape_id]
 		#shape._generate_svg()
+		if shape is not SWFClasses.SWFShape: continue
 		var svg_str = shape.to_svg()
 		if svg_str.is_empty():continue
 		var file_path = svg_export_folder + "/" + "%s.svg" % shape_id

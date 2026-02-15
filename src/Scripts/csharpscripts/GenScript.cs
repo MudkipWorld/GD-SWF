@@ -110,10 +110,43 @@ public partial class GenScript : Node {
                         ["A"] = (int)(sub.FillColor.A * 255)
                     };
 
+
+                    Godot.Collections.Dictionary gradDict = null;
+                    if (sub.Gradient != null)
+                    {
+                        var stopsArray = new Godot.Collections.Array();
+                        foreach (var stop in sub.Gradient.Stops)
+                        {
+                            stopsArray.Add(new Godot.Collections.Dictionary
+                            {
+                                ["Offset"] = stop.Offset,
+                                ["Color"] = new Godot.Collections.Dictionary
+                                {
+                                    ["R"] = stop.Color.R ,
+                                    ["G"] = stop.Color.G ,
+                                    ["B"] = stop.Color.B,
+                                    ["A"] = stop.Color.A
+                                }
+                            });
+                        }
+
+                        gradDict = new Godot.Collections.Dictionary
+                        {
+                            ["X1"] = sub.Gradient.X1,
+                            ["Y1"] = sub.Gradient.Y1,
+                            ["X2"] = sub.Gradient.X2,
+                            ["Y2"] = sub.Gradient.Y2,
+                            ["Stops"] = stopsArray
+                        };
+                    }
+
+
+
                     subPathsArray.Add(new Godot.Collections.Dictionary
                     {
                         ["FillColor"] = fillColorDict,
-                        ["Segments"] = segmentsArray
+                        ["Segments"] = segmentsArray,
+                        ["Gradient"] = gradDict
                     });
                 }
 

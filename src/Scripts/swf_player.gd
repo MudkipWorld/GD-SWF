@@ -214,7 +214,35 @@ func draw_shape(shape: SWFClasses.SWFShape, _transform: Transform2D, frame_color
 					final.lightened(frame_lumi)
 					colors.append(final)
 				if indices.is_empty() or points.is_empty(): continue
-				RenderingServer.canvas_item_add_triangle_array(get_canvas_item(), indices, points, colors)
+				
+				if shape.is_gradient:
+					var min_point = points[0]
+					var max_point = points[0]
+
+					for p in points:
+						if p.x < min_point.x:
+							min_point.x = p.x
+						if p.y < min_point.y:
+							min_point.y = p.y
+						if p.x > max_point.x:
+							max_point.x = p.x
+						if p.y > max_point.y:
+							max_point.y = p.y
+
+					var rect_size = max_point - min_point
+					var uvs = PackedVector2Array()
+					for p in points:
+						var uv = Vector2()
+						if rect_size.x != 0 and rect_size.y != 0:
+							uv.x = (p.x - min_point.x) / rect_size.x
+							uv.y = (p.y - min_point.y) / rect_size.y
+						else:
+							uv = Vector2(0, 0)
+						uvs.append(uv)
+
+					RenderingServer.canvas_item_add_triangle_array(get_canvas_item(),indices,points,colors,uvs,PackedInt32Array(),PackedFloat32Array(),shape.raster_texture.get_rid())
+				else:
+					RenderingServer.canvas_item_add_triangle_array(get_canvas_item(), indices, points, colors)
 
 func sort_frames(a, b):
 	if a.depth != b.depth:
@@ -241,10 +269,17 @@ func center_model():
 				for sp in shape.subpaths:
 					for seg in sp["segments"]:
 						for pt in [seg.Start, seg.End, seg.Control]:
-							if pt != Vector2.ZERO:
-								var transformed = pos + pt
-								min_pt = Vector2(min(min_pt.x, transformed.x), min(min_pt.y, transformed.y))
-								max_pt = Vector2(max(max_pt.x, transformed.x), max(max_pt.y, transformed.y))
+							if pt is Dictionary:
+								var test = Vector2(pt["X"], pt["Y"])
+								if test != Vector2.ZERO:
+									var transformed = pos + test
+									min_pt = Vector2(min(min_pt.x, transformed.x), min(min_pt.y, transformed.y))
+									max_pt = Vector2(max(max_pt.x, transformed.x), max(max_pt.y, transformed.y))
+							elif pt is Vector2:
+								if pt != Vector2.ZERO:
+									var transformed = pos + pt
+									min_pt = Vector2(min(min_pt.x, transformed.x), min(min_pt.y, transformed.y))
+									max_pt = Vector2(max(max_pt.x, transformed.x), max(max_pt.y, transformed.y))
 
 	var center = (min_pt + max_pt) * 0.5
 	model_placement = -center

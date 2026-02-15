@@ -53,7 +53,9 @@ class SWFShape:
 	var offset: Vector2 = Vector2.ZERO
 	var size: Vector2 = Vector2.ZERO
 	var svg_text: String = ""
-	var texture: ImageTexture = null
+	var is_gradient : bool = false
+	var texture : ImageTexture = null
+	var raster_texture : ImageTexture = null
 	var curve_subdivisions := 5
 
 	func _init(data: Dictionary):
@@ -68,11 +70,32 @@ class SWFShape:
 					"lines": [],
 					"polygons": [],
 					"triangles": {},
-					"color": color
+					"color": color,
+					"gradient": null
 				}
+				if sp.has("Gradient"):
+					if sp["Gradient"] != null:
+						var grad_info = sp["Gradient"]
+						var stops = []
+						for stop in grad_info.get("Stops", []):
+							var sc = stop.get("Color", {"R":1,"G":1,"B":1,"A":1})
+							
+							stops.append({
+								"offset": stop.get("Offset", 0.0),
+								"color": Color(sc["R"], sc["G"], sc["B"], sc["A"])
+							})
+						subpath_data["gradient"] = {
+							"x1": grad_info.get("X1", 0),
+							"y1": grad_info.get("Y1", 0),
+							"x2": grad_info.get("X2", 0),
+							"y2": grad_info.get("Y2", 0),
+							"stops": stops
+						}
+						is_gradient = true
+						
 				subpaths.append(subpath_data)
 				backup_subpaths.append(subpath_data.duplicate(true))
-		
+
 		if data.has("Strokes"):
 			for st in data["Strokes"]:
 				var segments = st.get("Segments", [])
@@ -151,7 +174,7 @@ class SWFShape:
 				var end_pt = Vector2(seg["End"].get("X", 0), seg["End"].get("Y", 0))
 				
 				if last_point and start_pt.distance_squared_to(last_point) > 0.01*0.01:
-					poly = simplify_collinear(poly, 0.01)
+					poly = MathUtil.simplify_collinear(poly, 0.01)
 					if poly.size() >= 3: polygons.append(poly)
 					poly = PackedVector2Array()
 				if poly.is_empty(): poly.append(start_pt)
@@ -168,7 +191,7 @@ class SWFShape:
 						min_pt = min_pt.min(ctrl_pt)
 						max_pt = max_pt.max(ctrl_pt)
 						var steps: int = int(max(smooth_interation, start_pt.distance_to(ctrl_pt)+ctrl_pt.distance_to(end_pt)/4))
-						for p in subdivide_quadratic_bezier(start_pt, ctrl_pt, end_pt, steps):
+						for p in MathUtil.subdivide_quadratic_bezier(start_pt, ctrl_pt, end_pt, steps):
 							poly.append(p)
 				else:
 					var steps = max(smooth_interation, int(start_pt.distance_to(end_pt)/4))
@@ -178,16 +201,16 @@ class SWFShape:
 				lines.append(line_data)
 				last_point = poly[poly.size()-1]
 
-			poly = simplify_collinear(poly, 0.01)
+			poly = MathUtil.simplify_collinear(poly, 0.01)
 			if poly.size() >= 3: polygons.append(poly)
 
 			var normalized := []
 			for p in polygons:
 				if p.size() < 3: continue
-				if compute_signed_area(p) > 0:
-					normalized.append(ensure_ccw(p))
+				if MathUtil.compute_signed_area(p) > 0:
+					normalized.append(MathUtil.ensure_ccw(p))
 				else:
-					normalized.append(ensure_cw(p))
+					normalized.append(MathUtil.ensure_cw(p))
 
 			var classified = classify_polygons_with_holes(normalized)
 
@@ -232,37 +255,18 @@ class SWFShape:
 			size = max_pt - min_pt
 
 		if hollow_pieces and all_polygons.size() > 0:
-			detect_global_overlaps(all_polygons, polygon_source_info)
+			MathUtil.detect_global_overlaps(all_polygons, polygon_source_info)
 			subtract_overlapping_geometry()
 
 		generate_svg()
 
-	func is_polygon_inside(inner: PackedVector2Array, outer: PackedVector2Array) -> bool:
-		if inner.size() < 3 or outer.size() < 3:
-			return false
-		var cx := 0.0
-		var cy := 0.0
-		var a := 0.0
-		for i in range(inner.size()):
-			var p0 = inner[i]
-			var p1 = inner[(i + 1) % inner.size()]
-			var cross = p0.x * p1.y - p1.x * p0.y
-			a += cross
-			cx += (p0.x + p1.x) * cross
-			cy += (p0.y + p1.y) * cross
-		if abs(a) < 0.00001: return false
-		a *= 0.5
-		cx /= (6.0 * a)
-		cy /= (6.0 * a)
-		return Geometry2D.is_point_in_polygon(Vector2(cx, cy) + Vector2(0.001, 0.001), outer)
-
 	func create_bridged_polygon(outer: PackedVector2Array, holes: Array) -> PackedVector2Array:
-		outer = ensure_ccw(outer)
+		outer = MathUtil.ensure_ccw(outer)
 		var result = outer.duplicate()
 		for hole in holes:
 			if hole.size() < 3:
 				continue
-			hole = ensure_cw(hole)
+			hole = MathUtil.ensure_cw(hole)
 
 			var min_dist = INF
 			var outer_idx = 0
@@ -281,46 +285,34 @@ class SWFShape:
 			for i in range(hole.size()):
 				new_poly.append(hole[(hole_idx + i) % hole.size()])
 			new_poly.append(result[outer_idx])
-			new_poly = remove_duplicate_points(new_poly)
-			result = close_loop(new_poly)
+			new_poly = MathUtil.remove_duplicate_points(new_poly)
+			result = MathUtil.close_loop(new_poly)
 		return result
 
 	func triangulate_polygon(outer: PackedVector2Array, holes: Array) -> PackedInt32Array:
 		var bridged_poly = create_bridged_polygon(outer, holes)
 		return fallback_triangulate(bridged_poly)
 
-	func remove_duplicate_points(poly: PackedVector2Array) -> PackedVector2Array:
-		if poly.size() < 2:
-			return poly
-		var clean = PackedVector2Array()
-		clean.append(poly[0])
-		for i in range(1, poly.size()):
-			if poly[i] != poly[i-1]:
-				clean.append(poly[i])
-		if clean[0] == clean[clean.size()-1] and clean.size() > 1:
-			clean.remove_at(clean.size()-1)
-		return clean
-
 	func classify_polygons_with_holes(polygons: Array) -> Array:
-		var outers := []
-		var holes := []
+		var outers : Array = []
+		var holes : Array = []
 		for poly in polygons:
 			if poly.size() < 3: continue
-			if compute_signed_area(poly) > 0:
-				outers.append(ensure_ccw(poly))
+			if MathUtil.compute_signed_area(poly) > 0:
+				outers.append(MathUtil.ensure_ccw(poly))
 			else:
-				holes.append(ensure_cw(poly))
+				holes.append(MathUtil.ensure_cw(poly))
 		var result := []
 		for outer in outers:
 			result.append({"outer": outer, "holes": []})
 		for hole in holes:
 			var best_outer = -1
 			var smallest_area_diff = INF
-			var hole_area = abs(compute_signed_area(hole))
+			var hole_area = abs(MathUtil.compute_signed_area(hole))
 			for i in range(result.size()):
 				var outer = result[i]["outer"]
-				if is_polygon_inside(hole, outer):
-					var outer_area = abs(compute_signed_area(outer))
+				if MathUtil.is_polygon_inside(hole, outer):
+					var outer_area = abs(MathUtil.compute_signed_area(outer))
 					var area_diff = outer_area - hole_area
 					if area_diff > 0 and area_diff < smallest_area_diff:
 						smallest_area_diff = area_diff
@@ -389,7 +381,7 @@ class SWFShape:
 					if donut_polys.size() == 0:
 						indices_to_remove.append(i)
 						break
-					donut_polys.sort_custom(func(a, b): return abs(compute_signed_area(a)) > abs(compute_signed_area(b)))
+					donut_polys.sort_custom(func(a, b): return abs(MathUtil.compute_signed_area(a)) > abs(MathUtil.compute_signed_area(b)))
 					var new_outer = donut_polys[0]
 					var new_holes = []
 					if donut_polys.size() > 1:
@@ -410,157 +402,6 @@ class SWFShape:
 		for idx in indices_to_remove:
 			if idx < subpaths.size():
 				subpaths.remove_at(idx)
-
-	func detect_global_overlaps(all_polys: Array, source_info: Array):
-		for i in range(all_polys.size()):
-			for j in range(i + 1, all_polys.size()):
-				var p1 = all_polys[i]
-				var p2 = all_polys[j]
-				var p1_min = p1[0]; var p1_max = p1[0]
-				for p in p1: p1_min = p1_min.min(p); p1_max = p1_max.max(p)
-				var p2_min = p2[0]; var p2_max = p2[0]
-				for p in p2: p2_min = p2_min.min(p); p2_max = p2_max.max(p)
-				if p1_max.x < p2_min.x or p1_min.x > p2_max.x or p1_max.y < p2_min.y or p1_min.y > p2_max.y:
-					continue
-
-				if Geometry2D.intersect_polygons(p1, p2).size() > 0:
-					var _info1 = source_info[i]
-					var _info2 = source_info[j]
-
-	func generate_svg():
-		if subpaths.is_empty():
-			svg_text = ""
-			return
-
-		var width = size.x
-		var height = size.y
-		if !is_finite(width) or width <= 0: width = 1.0
-		if !is_finite(height) or height <= 0: height = 1.0
-
-		var sb := []
-		var defs := []
-		sb.append('<?xml version="1.0" encoding="UTF-8" standalone="no"?>')
-		sb.append('<svg width="%f" height="%f" viewBox="0 0 %f %f" xmlns="http://www.w3.org/2000/svg">' % [width, height, width, height])
-
-		var has_content = false
-		var gradient_counter = 0
-
-		for sp in subpaths:
-			if not sp.has("polygons") or sp["polygons"].is_empty():
-				continue
-
-			var d := ""
-			for poly in sp["polygons"]:
-				if poly.size() < 3: continue
-
-				var start_pt = sanitize_vector(poly[0]) - offset
-				d += "M %f %f " % [start_pt.x, start_pt.y]
-
-				for k in range(1, poly.size()):
-					var pt = sanitize_vector(poly[k]) - offset
-					d += "L %f %f " % [pt.x, pt.y]
-
-				d += "Z "
-
-			if d.length() > 0:
-				var fill_attr = ""
-				var alpha = sp["color"].a
-
-				if sp.has("gradient") and sp.gradient != null and sp.gradient.stops.size() > 0:
-					if not sp.has("gradient_id"):
-						sp.gradient_id = gradient_counter
-						gradient_counter += 1
-
-					var grad_id = "grad%d" % sp.gradient_id
-					fill_attr = "url(#%s)" % grad_id
-
-					defs.append('<linearGradient id="%s" x1="%f" y1="%f" x2="%f" y2="%f" gradientUnits="userSpaceOnUse">' %
-						[grad_id, sp.gradient.x1, sp.gradient.y1, sp.gradient.x2, sp.gradient.y2])
-					for stop in sp.gradient.stops:
-						var stop_hex = Color(stop.color.r, stop.color.g, stop.color.b, 1.0).to_html(false)
-						defs.append('<stop offset="%f" stop-color="#%s" stop-opacity="%f"/>' % [stop.offset, stop_hex, stop.color.a])
-					defs.append('</linearGradient>')
-				else:
-					fill_attr = "#%s" % sp["color"].to_html(false)
-
-				sb.append('<path d="%s" fill="%s" fill-opacity="%f" fill-rule="evenodd" stroke="none"/>' % [d, fill_attr, alpha])
-				has_content = true
-
-		for sp in stroke_paths:
-			if not sp.has("lines") or sp["lines"].is_empty():
-				continue
-
-			var d := ""
-			var first := true
-
-			for l in sp["lines"]:
-				var s = sanitize_vector(l["start"]) - offset
-				var e = sanitize_vector(l["end"]) - offset
-
-				if first:
-					d += "M %f %f " % [s.x, s.y]
-					first = false
-
-				if l["type"] == "curve":
-					var c = sanitize_vector(l["control"]) - offset
-					d += "Q %f %f %f %f " % [c.x, c.y, e.x, e.y]
-				else:
-					d += "L %f %f " % [e.x, e.y]
-
-			if d.length() > 0:
-				sb.append(
-					'<path d="%s" fill="none" stroke="#%s" stroke-opacity="%f" stroke-width="%f" stroke-linecap="round" stroke-linejoin="round"/>' %
-					[
-						d,
-						sp["color"].to_html(false),
-						sp["color"].a,
-						sp["width"]
-					]
-				)
-
-		if defs.size() > 0:
-			sb.insert(1, "<defs>%s</defs>\n" % "".join(defs))
-
-		sb.append("</svg>")
-
-		if has_content:
-			svg_text = "".join(sb)
-		else:
-			svg_text = '<svg width="1" height="1" viewBox="0 0 1 1" xmlns="http://www.w3.org/2000/svg"></svg>'
-
-	func to_svg() -> String:
-		return svg_text
-
-	func ensure_ccw(poly: PackedVector2Array) -> PackedVector2Array:
-		if compute_signed_area(poly) < 0:
-			poly.reverse()
-		return poly
-
-	func ensure_cw(poly: PackedVector2Array) -> PackedVector2Array:
-		if compute_signed_area(poly) > 0:
-			poly.reverse()
-		return poly
-
-	func simplify_collinear(poly: PackedVector2Array, angle_eps: float = 0.01) -> PackedVector2Array:
-		if poly.size() < 3: return poly
-		var new_poly = PackedVector2Array()
-		new_poly.append(poly[0])
-		for i in range(1, poly.size() - 1):
-			var a = poly[i - 1]
-			var b = poly[i]
-			var c = poly[i + 1]
-			if abs((b - a).angle_to(c - b)) > angle_eps:
-				new_poly.append(b)
-		new_poly.append(poly[poly.size() - 1])
-		return new_poly
-
-	func compute_signed_area(poly: PackedVector2Array) -> float:
-		var area = 0.0
-		for i in range(poly.size()):
-			var p1 = poly[i]
-			var p2 = poly[(i + 1) % poly.size()]
-			area += (p1.x * p2.y - p2.x * p1.y)
-		return area * 0.5
 
 	func fallback_triangulate(poly: PackedVector2Array) -> PackedInt32Array:
 		var n := poly.size()
@@ -583,14 +424,14 @@ class SWFShape:
 				var curr_idx = indices[i]
 				var next_idx = indices[(i + 1) % indices.size()]
 
-				if !is_convex(poly, prev_idx, curr_idx, next_idx):
+				if !MathUtil.is_convex(poly, prev_idx, curr_idx, next_idx):
 					continue
 
 				var has_inside := false
 				for j in indices:
 					if j in [prev_idx, curr_idx, next_idx]:
 						continue
-					if point_in_triangle(poly, j, prev_idx, curr_idx, next_idx):
+					if MathUtil.point_in_triangle(poly, j, prev_idx, curr_idx, next_idx):
 						has_inside = true
 						break
 
@@ -621,48 +462,151 @@ class SWFShape:
 
 		return triangles
 
-	func is_convex(poly: PackedVector2Array, a: int, b: int, c: int) -> bool:
-		return ((poly[b] - poly[a]).cross(poly[c] - poly[b])) > 0
+	func get_shape_bounds(polygons):
+		var min_x = INF
+		var min_y = INF
+		var max_x = -INF
+		var max_y = -INF
 
-	func point_in_triangle(poly: PackedVector2Array, p: int, a: int, b: int, c: int) -> bool:
-		var v0 = poly[c] - poly[a]
-		var v1 = poly[b] - poly[a]
-		var v2 = poly[p] - poly[a]
-		var dot00 = v0.dot(v0)
-		var dot01 = v0.dot(v1)
-		var dot02 = v0.dot(v2)
-		var dot11 = v1.dot(v1)
-		var dot12 = v1.dot(v2)
-		var invDenom = 1.0 / (dot00 * dot11 - dot01 * dot01)
-		var u = (dot11 * dot02 - dot01 * dot12) * invDenom
-		var v = (dot00 * dot12 - dot01 * dot02) * invDenom
-		return (u >= 0) and (v >= 0) and (u + v <= 1)
+		for poly in polygons:
+			for pt in poly:
+				var p = MathUtil.sanitize_vector(pt) - offset
+				min_x = min(min_x, p.x)
+				min_y = min(min_y, p.y)
+				max_x = max(max_x, p.x)
+				max_y = max(max_y, p.y)
 
-	func subdivide_quadratic_bezier(p0: Vector2, p1: Vector2, p2: Vector2, steps: int) -> Array:
-		var points := []
-		for i in range(1, steps+1):
-			var t = i/float(steps)
-			var mt = 1 - t
-			var pos = mt*mt*p0 + 2*mt*t*p1 + t*t*p2
-			points.append(pos)
-		return points
+		return Rect2(Vector2(min_x, min_y), Vector2(max_x - min_x, max_y - min_y))
 
-	func get_local_center() -> Vector2:
-		if size == Vector2.ZERO: return Vector2.ZERO
-		return offset + size * 0.5
+	func generate_svg():
+		if subpaths.is_empty():
+			svg_text = ""
+			return
 
-	func sanitize_vector(v: Vector2) -> Vector2:
-		if !is_finite(v.x) or !is_finite(v.y): return Vector2.ZERO
-		return v
+		var width = size.x
+		var height = size.y
+		if !is_finite(width) or width <= 0: width = 1.0
+		if !is_finite(height) or height <= 0: height = 1.0
 
-	func close_loop(poly: PackedVector2Array) -> PackedVector2Array:
-		if poly.size() < 3:
-			return poly
-		if poly[0] != poly[poly.size() - 1]:
-			var closed = poly.duplicate()
-			closed.append(poly[0])
-			return closed
-		return poly
+		var sb := []
+		var defs := []
+		sb.append('<?xml version="1.0" encoding="UTF-8" standalone="no"?>')
+		sb.append('<svg width="%f" height="%f" viewBox="0 0 %f %f" xmlns="http://www.w3.org/2000/svg">' % [width, height, width, height])
+
+		var has_content = false
+		var gradient_counter = 0
+
+		for sp in subpaths:
+			if not sp.has("polygons") or sp["polygons"].is_empty():
+				continue
+
+			var d := ""
+			for poly in sp["polygons"]:
+				if poly.size() < 3: continue
+
+				var start_pt = MathUtil.sanitize_vector(poly[0]) - offset
+				d += "M %f %f " % [start_pt.x, start_pt.y]
+
+				for k in range(1, poly.size()):
+					var pt = MathUtil.sanitize_vector(poly[k]) - offset
+					d += "L %f %f " % [pt.x, pt.y]
+
+				d += "Z "
+
+			if d.length() > 0:
+				var fill_attr = ""
+				var alpha = sp["color"].a
+				var style_attr = ""
+
+				if sp.has("gradient") and sp["gradient"] != null and sp["gradient"]["stops"].size() > 0:
+					if !sp.has("gradient_id"):
+						sp["gradient_id"] = gradient_counter
+						gradient_counter += 1
+					var grad_id = "grad%d" % sp["gradient_id"]
+					fill_attr = "url(#%s)" % grad_id
+					alpha = 1.0
+					style_attr = "style='fill:url(#%s);fill-opacity:%f'" % [grad_id, alpha]
+
+					var g = sp["gradient"]
+					var bounds = get_shape_bounds(sp["polygons"])
+					var bb_center = bounds.position + bounds.size * 0.5
+
+					var x1 = g.x1 + bb_center.x
+					var y1 = g.y1 + bb_center.y
+					var x2 = g.x2 + bb_center.x
+					var y2 = g.y2 + bb_center.y
+
+					defs.append('<linearGradient id="%s" x1="%f" y1="%f" x2="%f" y2="%f" gradientUnits="userSpaceOnUse">' % [grad_id, x1, y1, x2, y2])
+
+					for stop in g["stops"]:
+						var c = stop["color"]
+						var stop_hex = "#" + c.to_html(false)
+
+						defs.append('<stop offset="%f" stop-color="%s" stop-opacity="%f"/>' % [stop["offset"], stop_hex, c.a])
+
+
+
+					
+					defs.append('</linearGradient>')
+				else:
+					fill_attr = "#%s" % sp["color"].to_html(false)
+					style_attr = ""
+
+				sb.append('<path d="%s" fill="%s" fill-opacity="%f" fill-rule="evenodd" stroke="none" %s/>' % [d, fill_attr, alpha, style_attr])
+				has_content = true
+
+		for sp in stroke_paths:
+			if not sp.has("lines") or sp["lines"].is_empty():
+				continue
+			
+			var d := ""
+			var first := true
+			
+			for l in sp["lines"]:
+				var s = MathUtil.sanitize_vector(l["start"]) - offset
+				var e = MathUtil.sanitize_vector(l["end"]) - offset
+				
+				if first:
+					d += "M %f %f " % [s.x, s.y]
+					first = false
+					
+				if l["type"] == "curve":
+					var c = MathUtil.sanitize_vector(l["control"]) - offset
+					d += "Q %f %f %f %f " % [c.x, c.y, e.x, e.y]
+				else:
+					d += "L %f %f " % [e.x, e.y]
+					
+			if d.length() > 0:
+				sb.append(
+					'<path d="%s" fill="none" stroke="#%s" stroke-opacity="%f" stroke-width="%f" stroke-linecap="round" stroke-linejoin="round"/>' %
+					[
+						d,
+						sp["color"].to_html(false),
+						sp["color"].a,
+						sp["width"]
+					]
+				)
+
+		if defs.size() > 0:
+			sb.append("<defs>%s</defs>" % "".join(defs))
+
+		sb.append("</svg>")
+
+		if has_content:
+			svg_text = "".join(sb)
+		else:
+			svg_text = '<svg width="1" height="1" viewBox="0 0 1 1" xmlns="http://www.w3.org/2000/svg"></svg>'
+
+		if is_gradient:
+			var img : Image = Image.new()
+			img.load_svg_from_string(to_svg())
+			if img.is_empty():
+				return
+			raster_texture = ImageTexture.create_from_image(img)
+
+	func to_svg() -> String:
+		return svg_text
+
 
 class SWFSprite:
 	var children : Array = []

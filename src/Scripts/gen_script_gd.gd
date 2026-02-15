@@ -3,6 +3,7 @@ extends Node
 enum ExportType {
 	Normal,
 	SVG,
+	SVGSingle,
 	SKF
 }
 
@@ -19,6 +20,7 @@ var zoom_trigger : bool = false
 var dragging : bool = false
 var smooth_iterations : int = 5
 var selected_shape : SWFClasses.SWFShape = null
+var exported_shape : SWFClasses.SWFShape = null
 
 # Loading data from selected file.
 func load_path(path : String = ""):
@@ -37,6 +39,9 @@ func load_path(path : String = ""):
 	player.current_animation = 0
 	player.current_frame = 0
 	%GenExport.parse_json(loaded_data, player, smooth_iterations)
+	%SaveJson.disabled = false
+	%SaveSVG.disabled = false
+	%SaveSKF.disabled = false
 	populate_tree()
 	populate_sprites_options()
 	#populate_option_button()
@@ -166,10 +171,14 @@ func _on_export_dialog_dir_selected(dir: String) -> void:
 			%GenExport.export_json_optimized(player, loaded_swf_name)
 		ExportType.SVG:
 			%GenExport.svg_export_folder = dir
-			%GenExport.export_all_svgs(player)
+			%GenExport.export_all_svgs(player.shapes)
 		ExportType.SKF:
 			%GenExport.skf_export_folder = dir
 			%GenExport.export_skelform(player, loaded_swf_name, loaded_data)
+		ExportType.SVGSingle:
+			%GenExport.svg_export_folder = dir
+			var id = player.shapes.find_key(exported_shape)
+			%GenExport.export_all_svgs({"id" : id, "shape" : exported_shape})
 
 func _on_root_anima_sprite_item_selected(_index: int) -> void:
 	var sel = %RootAnimaSprite.get_selected_metadata()
@@ -192,6 +201,20 @@ func _on_tree_item_selected() -> void:
 		%Preview.texture = selected_shape.texture
 	else:
 		%Preview.texture = null
+
+func _on_tree_item_mouse_selected(mouse_position: Vector2, mouse_button_index: int) -> void:
+	var sel : TreeItem = %Tree.get_item_at_position(mouse_position)
+	if sel == null or !is_instance_valid(sel): return
+	if mouse_button_index == MOUSE_BUTTON_RIGHT:
+		if sel.get_metadata(0) is SWFClasses.SWFShape:
+			exported_shape = sel.get_metadata(0)
+			%TreeShapePopup.popup(Rect2(mouse_position.x, mouse_position.y, 100, 100))
+
+func _on_popup_menu_id_pressed(id: int) -> void:
+	match id:
+		0:
+			current_export_type = ExportType.SVGSingle
+			%ExportDialog.popup()
 
 #--------- Button presses
 func _on_save_json_pressed() -> void:
