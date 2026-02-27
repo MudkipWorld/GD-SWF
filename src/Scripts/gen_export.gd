@@ -93,7 +93,7 @@ func export_skelform(player: SWFPlayer, file_name: String = "", _data : Dictiona
 	
 	# basic armature.json data structure
 	var armature := {
-		"version": "0.2.0",
+		"version": "0.4.0",
 		"ik_root_ids": [],
 		"styles": [],
 		"bones": [],
@@ -237,10 +237,8 @@ func build_animations(player: SWFPlayer, root_sprite_id: int, bones_list: Array)
 							anim["keyframes"].append({
 								"frame": local_frame,
 								"bone_id": bone_id,
-								"element": element_index,
-								"element_str": element_str,
+								"element": element_str,
 								"value": val,
-								"transition": "Linear"
 							})
 						var tex_name = "shape_%d" % ft.symbol_id
 						if player.shapes.has(ft.symbol_id):
@@ -249,11 +247,8 @@ func build_animations(player: SWFPlayer, root_sprite_id: int, bones_list: Array)
 								anim["keyframes"].append({
 									"frame": local_frame,
 									"bone_id": bone_id,
-									"element": 6, # Texture
-									"element_str": "Texture",
+									"element": "Texture",
 									"value_str": tex_name,
-									"value": 0.0,
-									"transition": "Linear"
 								})
 
 		animations_list.append(anim)
@@ -268,18 +263,18 @@ func build_animations(player: SWFPlayer, root_sprite_id: int, bones_list: Array)
 			var kf = anim["keyframes"][k]
 			var key = str(kf.bone_id) + "_" + str(kf.frame)
 
-			if kf.element == 2: # Rotation
+			if kf.element == "Rotation":
 				var bone_id = kf.bone_id
 				var rot = kf.value
+				flip_state[key] = abs(rot) > PI * 0.5
 				if prev_rot.has(bone_id):
 					var delta = calculate_shortest_angle(prev_rot[bone_id], rot)
 					rot = prev_rot[bone_id] + delta
 				kf.value = rot
 				prev_rot[bone_id] = rot
-				flip_state[key] = abs(rot) > PI * 0.5
 				continue
 
-			if kf.element == 4 and flip_state.get(key, false): # ScaleY
+			if kf.element == "ScaleY" and flip_state.get(key, false):
 				kf.value = -kf.value
 
 	return animations_list
