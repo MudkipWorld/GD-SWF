@@ -4,7 +4,8 @@ enum ExportType {
 	Normal,
 	SVG,
 	SVGSingle,
-	SKF
+	SKF,
+	Scene
 }
 
 @onready var gen = %GenScript
@@ -29,7 +30,7 @@ func load_path(path : String = ""):
 	if dummy == null:
 		printerr("Corrupt Load.")
 		return
-	loaded_data = dummy
+	loaded_data = dummy.duplicate(true)
 	#var stage_size = loaded_data.get("SceneSize", { "Width": 300, "Height": 300 })
 	#%GenExport.stage_size = Vector2(stage_size["Width"], stage_size["Height"])
 	
@@ -42,6 +43,7 @@ func load_path(path : String = ""):
 	%SaveJson.disabled = false
 	%SaveSVG.disabled = false
 	%SaveSKF.disabled = false
+	%SaveScene.disabled = false
 	populate_tree()
 	populate_sprites_options()
 	#populate_option_button()
@@ -115,6 +117,7 @@ func populate_tree():
 				child_item.get_parent().remove_child(child_item)
 				parent_item.add_child(child_item)
 
+
 # Since the general animation could be from a specific sprite, this lets you select which sprite to set as the root for animation.
 func populate_sprites_options():
 	%RootAnimaSprite.clear()
@@ -179,6 +182,9 @@ func _on_export_dialog_dir_selected(dir: String) -> void:
 			%GenExport.svg_export_folder = dir
 			var id = player.shapes.find_key(exported_shape)
 			%GenExport.export_all_svgs({"id" : id, "shape" : exported_shape})
+		ExportType.Scene:
+			%GenExport.scene_export_folder = dir
+			%GenExport.export_all_scene(player)
 
 func _on_root_anima_sprite_item_selected(_index: int) -> void:
 	var sel = %RootAnimaSprite.get_selected_metadata()
@@ -227,6 +233,10 @@ func _on_save_svg_pressed() -> void:
 
 func _on_save_skf_pressed() -> void:
 	current_export_type = ExportType.SKF
+	%ExportDialog.popup()
+
+func _on_save_scene_pressed() -> void:
+	current_export_type = ExportType.Scene
 	%ExportDialog.popup()
 
 func _on_re_gen_poly_pressed() -> void:

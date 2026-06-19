@@ -1,0 +1,382 @@
+extends RefCounted
+class_name SceneExporter
+
+static func export_all_scene(player: SWFPlayer) -> PackedScene:
+	var root_node = Node2D.new()
+	root_node.name = "SWFRoot"
+	root_node.scale = player.draw_scale
+
+	var anim_player = AnimationPlayer.new()
+	anim_player.deterministic = true
+	root_node.add_child(anim_player)
+	anim_player.owner = root_node
+
+	var shape_mesh_cache := {}
+	var instance_map := {}
+
+	build_scene_recursive(player,player.animated_sprite_id,root_node,shape_mesh_cache,instance_map)
+	apply_static_transforms(player, instance_map)
+	
+	process_sprite_animations(player.animated_sprite_id, player, instance_map,anim_player,root_node)
+
+	var packed_scene = PackedScene.new()
+	packed_scene.pack(root_node)
+	root_node.queue_free()
+
+	return packed_scene
+
+static func build_scene_recursive(player: SWFPlayer,sprite_id: int,parent_node: Node,shape_mesh_cache: Dictionary,instance_map: Dictionary,parent_instance_key: String = "root") -> Node2D:
+
+	if !player.sprites.has(sprite_id):
+		return null
+
+	var sprite : SWFClasses.SWFSprite = player.sprites[sprite_id]
+
+	var sprite_node := Node2D.new()
+	sprite_node.name = sprite.sprite_name if !sprite.sprite_name.is_empty() else "Sprite_%d" % sprite_id
+
+	parent_node.add_child(sprite_node)
+	sprite_node.owner = parent_node.owner if parent_node.owner else parent_node
+
+	var sprite_instance_key = "%s_%d" % [parent_instance_key, sprite_id]
+
+	instance_map[sprite_instance_key] = {
+		"type": "sprite",
+		"node": sprite_node,
+		"sprite_id": sprite_id
+	}
+
+	for child in sprite.children:
+
+		var child_id = child.id
+
+		var child_key = "%s_%d_%d" % [
+			sprite_instance_key,
+			sprite_id,
+			child_id
+		]
+
+		if player.shapes.has(child_id):
+
+			var shape_node = create_shape_node(player.shapes[child_id],child_id,shape_mesh_cache)
+
+			sprite_node.add_child(shape_node)
+			shape_node.owner = sprite_node.owner
+
+			instance_map[child_key] = {
+				"type": "shape",
+				"node": shape_node,
+				"sprite_id": sprite_id,
+				"symbol_id": child_id
+			}
+
+		elif player.sprites.has(child_id):
+
+			var child_sprite_node = build_scene_recursive(player,child_id,sprite_node,shape_mesh_cache,instance_map,sprite_instance_key)
+
+			instance_map[child_key] = {
+				"type": "sprite_instance",
+				"node": child_sprite_node,
+				"sprite_id": sprite_id,
+				"symbol_id": child_id
+			}
+
+	return sprite_node
+
+static func process_sprite_animations(sprite_id: int,player: SWFPlayer,instance_map: Dictionary,anim_player: AnimationPlayer,scene_root: Node):
+	var sprite_data = player.sprites[sprite_id]
+	
+	var anim_names = sprite_data.animations.keys()
+	if anim_names.is_empty():
+		anim_names = ["Default"]
+		sprite_data.animations["Default"] = range(sprite_data.frames.size())
+
+	var library_name := StringName("")
+	var anim_library: AnimationLibrary
+
+	if anim_player.has_animation_library(library_name):
+		anim_library = anim_player.get_animation_library(library_name)
+	else:
+		anim_library = AnimationLibrary.new()
+		anim_player.add_animation_library(library_name, anim_library)
+
+	for anim_name in anim_names:
+
+		var frame_indices: Array = sprite_data.animations[anim_name]
+		if frame_indices.is_empty():
+			continue
+
+		var animation := Animation.new()
+		animation.length = float(frame_indices.size()) / float(player.fps)
+		animation.loop_mode = Animation.LOOP_LINEAR
+
+		var anim_symbols : Dictionary = {}
+		for fi in frame_indices:
+			if fi >= sprite_data.frames.size():
+				continue
+			for ft in sprite_data.frames[fi].values():
+				anim_symbols[ft.symbol_id] = true
+
+		for frame_idx in range(frame_indices.size()):
+
+			var real_frame = frame_indices[frame_idx]
+			if real_frame >= sprite_data.frames.size():
+				continue
+
+			var frame_dict: Dictionary = sprite_data.frames[real_frame]
+			var time := float(frame_idx) / float(player.fps)
+
+			var active_symbols := {}
+
+			var frame_items = frame_dict.values()
+			frame_items.sort_custom(sort_frames)
+
+			for ft in frame_items:
+
+				var base_key = "root_%d_%d_%d" % [
+					sprite_id,
+					sprite_id,
+					ft.symbol_id
+				]
+
+				if !instance_map.has(base_key):
+					continue
+
+				var node: Node2D = instance_map[base_key]["node"]
+
+				active_symbols[ft.symbol_id] = true
+
+				ensure_track(animation, node, ":transform", scene_root)
+				ensure_track(animation, node, ":modulate", scene_root)
+				ensure_track(animation, node, ":z_index", scene_root)
+				ensure_track(animation, node, ":visible", scene_root)
+
+				var transform := Transform2D.IDENTITY
+
+				if ft.transform_matrix.size() == 6:
+					var m = ft.transform_matrix
+					transform = Transform2D(
+						Vector2(m[0], m[1]),
+						Vector2(m[2], m[3]),
+						Vector2(m[4], m[5])
+					)
+				else:
+					transform = transform.scaled(Vector2(ft.scale_x, ft.scale_y))
+					transform = transform.rotated(-deg_to_rad(ft.rotation))
+					transform = transform.translated(Vector2(ft.x, ft.y))
+
+				var col = ft.color
+				if ft.lumi != 1.0:
+					col = col.lightened(ft.lumi)
+
+				set_key(animation, node, ":transform", time, transform, scene_root)
+				set_key(animation, node, ":modulate", time, col, scene_root)
+				set_key(animation, node, ":z_index", time, ft.depth, scene_root)
+				set_key(animation, node, ":visible", time, true, scene_root)
+
+			for symbol_id in anim_symbols.keys():
+
+				if active_symbols.has(symbol_id):
+					continue
+
+				var base_key = "root_%d_%d_%d" % [sprite_id, sprite_id, symbol_id]
+
+				if !instance_map.has(base_key):
+					continue
+
+				var node: Node2D = instance_map[base_key]["node"]
+
+				ensure_track(animation, node, ":visible", scene_root)
+				set_key(animation, node, ":visible", time, false, scene_root)
+
+		var final_name = anim_name.replace(",", "_").replace(" ", "_")
+		anim_library.add_animation(final_name, animation)
+
+static func apply_static_transforms(player: SWFPlayer,instance_map: Dictionary):
+
+	for entry in instance_map.values():
+
+		if !entry is Dictionary:
+			continue
+
+		var target_node: Node2D = entry.get("node")
+		if target_node == null:
+			continue
+
+		var sprite_id = entry.get("sprite_id", -1)
+		var symbol_id = entry.get("symbol_id", -1)
+
+		if sprite_id == -1 or symbol_id == -1:
+			continue
+
+		if !player.sprites.has(sprite_id):
+			continue
+
+		var sprite : SWFClasses.SWFSprite = player.sprites[sprite_id]
+
+		if sprite.frames.is_empty():
+			continue
+
+		var frame0 = sprite.frames[0]
+
+		var ft = null
+
+		for frame_entry in frame0.values():
+			if frame_entry.symbol_id == symbol_id:
+				ft = frame_entry
+				break
+
+		if ft == null:
+			target_node.visible = false
+			continue
+
+		apply_frame_transform(target_node, ft)
+
+static func apply_frame_transform(target_node: Node2D,ft: SWFClasses.SWFFrame):
+	var pos : Vector2 = Vector2.ZERO
+	var rot : float = 0.0
+	var scale : Vector2 = Vector2.ONE
+
+	if ft.transform_matrix.size() == 6:
+		var m = ft.transform_matrix
+		var x_axis = Vector2(m[0], m[1])
+		var y_axis = Vector2(m[2], m[3])
+		var origin = Vector2(m[4], m[5])
+		scale = Vector2(x_axis.length(),y_axis.length())
+		rot = x_axis.angle()
+		
+		if x_axis.x < 0:
+			rot += PI
+		pos = origin
+
+	else:
+		pos = Vector2(ft.x, ft.y)
+		scale = Vector2(ft.scale_x, ft.scale_y)
+		rot = -deg_to_rad(ft.rotation)
+
+	target_node.position = pos
+	target_node.rotation = rot
+	target_node.scale = scale
+
+	var col = ft.color
+
+	if ft.lumi != 1.0:
+		col = col.lightened(ft.lumi)
+
+	target_node.modulate = col
+	target_node.visible = ft.visible
+	target_node.z_index = ft.depth
+
+static func calculate_depth(sprite_id: int, map: Dictionary, depths: Dictionary, visited: Array = []):
+	if depths.has(sprite_id):
+		return depths[sprite_id]
+	if sprite_id in visited:
+		return 999 
+	
+	visited.append(sprite_id)
+	
+	var current_depth = 0
+	if map.has(sprite_id):
+		var parent_id = map[sprite_id]
+		current_depth = 1 + calculate_depth(parent_id, map, depths, visited)
+	
+	depths[sprite_id] = current_depth
+	return current_depth
+
+static func create_shape_node(shape: SWFClasses.SWFShape, id: int, cache: Dictionary) -> MeshInstance2D:
+	var mesh_instance = MeshInstance2D.new()
+	mesh_instance.name = "Shape_%d" % id
+	
+	var shape_key = shape.get_instance_id()
+	if cache.has(shape_key):
+		mesh_instance.mesh = cache[shape_key]
+	else:
+		var mesh = generate_shape_mesh(shape)
+		cache[shape_key] = mesh
+		mesh_instance.mesh = mesh
+	
+	var material = StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.no_depth_test = true 
+	
+	if shape.is_gradient and shape.raster_texture:
+		material.albedo_texture = shape.raster_texture
+	
+	mesh_instance.material = material
+	return mesh_instance
+
+static func generate_shape_mesh(shape: SWFClasses.SWFShape) -> ArrayMesh:
+	var mesh = ArrayMesh.new()
+	for sp in shape.subpaths:
+		if not sp["triangles"].has("points") or not sp["triangles"].has("indices"):
+			continue
+			
+		var points: PackedVector2Array = sp["triangles"]["points"]
+		var indices: PackedInt32Array = sp["triangles"]["indices"]
+		
+		if points.is_empty() or indices.is_empty():
+			continue
+		
+		var arrays = []
+		arrays.resize(Mesh.ARRAY_MAX)
+		arrays[Mesh.ARRAY_VERTEX] = points
+		arrays[Mesh.ARRAY_INDEX] = indices
+		
+		var colors = PackedColorArray()
+		var base_color = sp["color"]
+		for i in range(points.size()):
+			colors.append(base_color)
+		arrays[Mesh.ARRAY_COLOR] = colors
+		
+		if shape.is_gradient:
+			var min_pt = points[0]
+			var max_pt = points[0]
+			for p in points:
+				min_pt.x = min(min_pt.x, p.x)
+				min_pt.y = min(min_pt.y, p.y)
+				max_pt.x = max(max_pt.x, p.x)
+				max_pt.y = max(max_pt.y, p.y)
+			
+			var rect_size = max_pt - min_pt
+			var uvs = PackedVector2Array()
+			for p in points:
+				var uv = Vector2.ZERO
+				if rect_size.x != 0 and rect_size.y != 0:
+					uv.x = (p.x - min_pt.x) / rect_size.x
+					uv.y = (p.y - min_pt.y) / rect_size.y
+				uvs.append(uv)
+			arrays[Mesh.ARRAY_TEX_UV] = uvs
+		
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+static func ensure_track(anim: Animation, node: Node, property: String, scene_root: Node):
+	var relative_path = scene_root.get_path_to(node)
+	var full_prop = str(relative_path) + property
+	var track_idx = anim.find_track(full_prop, Animation.TYPE_VALUE)
+	
+	if track_idx == -1:
+		anim.add_track(Animation.TYPE_VALUE)
+		track_idx = anim.get_track_count() - 1
+		anim.track_set_path(track_idx, full_prop)
+		anim.value_track_set_update_mode(track_idx, Animation.UPDATE_DISCRETE)
+
+static func set_key(anim: Animation, node: Node, property: String, time: float, value, scene_root: Node):
+	var relative_path = scene_root.get_path_to(node)
+	var full_prop = str(relative_path) + property
+	var track_idx = anim.find_track(full_prop, Animation.TYPE_VALUE)
+	
+	if track_idx != -1:
+		anim.track_insert_key(track_idx, time, value)
+	else:
+		ensure_track(anim, node, property, scene_root)
+		track_idx = anim.find_track(full_prop, Animation.TYPE_VALUE)
+		anim.track_insert_key(track_idx, time, value)
+
+static func sort_frames(a, b):
+	if a.depth != b.depth:
+		return a.depth < b.depth
+	if a.symbol_id != b.symbol_id:
+		return a.symbol_id < b.symbol_id
+	return int(a.get_instance_id()) < int(b.get_instance_id())

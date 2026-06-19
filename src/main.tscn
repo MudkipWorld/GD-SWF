@@ -272,6 +272,14 @@ theme_override_font_sizes/font_size = 12
 disabled = true
 text = "Export SKF"
 
+[node name="SaveScene" type="Button" parent="VBox/TopPanel/HBoxContainer" unique_id=106305006]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 24)
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+disabled = true
+text = "Export Godot Scene"
+
 [node name="SaveSKFTintMode" type="Button" parent="VBox/TopPanel/HBoxContainer" unique_id=2050781148]
 visible = false
 custom_minimum_size = Vector2(100, 24)
@@ -477,6 +485,7 @@ size_flags_vertical = 3
 theme_override_colors/relationship_line_color = Color(0.646029, 0.646029, 0.646029, 1)
 theme_override_colors/parent_hl_line_color = Color(0.64705884, 0.64705884, 0.64705884, 1)
 theme_override_colors/children_hl_line_color = Color(0.64705884, 0.64705884, 0.64705884, 1)
+theme_override_constants/item_margin = 8
 theme_override_constants/draw_guides = 2
 theme_override_constants/draw_relationship_lines = 2
 theme_override_styles/panel = SubResource("StyleBoxEmpty_7mycd")
@@ -610,6 +619,7 @@ item_0/id = 0
 [connection signal="pressed" from="VBox/TopPanel/HBoxContainer/SaveJson" to="GenScriptGD" method="_on_save_json_pressed"]
 [connection signal="pressed" from="VBox/TopPanel/HBoxContainer/SaveSVG" to="GenScriptGD" method="_on_save_svg_pressed"]
 [connection signal="pressed" from="VBox/TopPanel/HBoxContainer/SaveSKF" to="GenScriptGD" method="_on_save_skf_pressed"]
+[connection signal="pressed" from="VBox/TopPanel/HBoxContainer/SaveScene" to="GenScriptGD" method="_on_save_scene_pressed"]
 [connection signal="pressed" from="VBox/TopPanel/HBoxContainer/SaveSKFTintMode" to="GenScriptGD" method="_on_save_svg_pressed"]
 [connection signal="pressed" from="VBox/TopPanel/HBoxContainer/UISize/UIScaleUp" to="GenScriptGD" method="_on_ui_scale_up_pressed"]
 [connection signal="pressed" from="VBox/TopPanel/HBoxContainer/UISize/UIScaleDown" to="GenScriptGD" method="_on_ui_scale_down_pressed"]

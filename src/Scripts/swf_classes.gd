@@ -607,7 +607,6 @@ class SWFShape:
 	func to_svg() -> String:
 		return svg_text
 
-
 class SWFSprite:
 	var children : Array = []
 	var frames : Array = []

@@ -5,12 +5,13 @@ var gdwf_export_folder : String = "user://Exports/"
 var json_export_folder :String = "user://JsonExports/"
 var svg_export_folder : String = "user://SVGExports/"
 var skf_export_folder : String = "user://SKFExports/"
+var scene_export_folder : String = "user://SceneExports/"
 var use_fallback : bool = false
 var hollow_pieces : bool = false
 
 #region Json Stuff
 # -- Json import/ export
-func parse_json(data: Dictionary, player : SWFPlayer, smooth : int = 5) -> Array:
+func parse_json(data: Dictionary, player : SWFPlayer, smooth : int = 5):
 	player.file_loaded_right = false
 	if data.is_empty():
 		printerr("JSON parse error")
@@ -22,7 +23,6 @@ func parse_json(data: Dictionary, player : SWFPlayer, smooth : int = 5) -> Array
 	player.sprite_current_animation.clear()
 	player.sprite_current_anim_frame.clear()
 	
-	var returned_shapes : Array = []
 	if data.has("Shapes"):
 		for id in data["Shapes"].keys():
 			var shape = SWFClasses.SWFShape.new(data["Shapes"][id])
@@ -33,7 +33,6 @@ func parse_json(data: Dictionary, player : SWFPlayer, smooth : int = 5) -> Array
 				image.load_svg_from_string(shape.to_svg())
 				shape.texture = ImageTexture.create_from_image(image)
 			player.shapes[id] = shape
-			returned_shapes.append({shape = shape, id = id })
 
 	if data.has("Sprites"):
 		for id in data["Sprites"].keys():
@@ -43,12 +42,13 @@ func parse_json(data: Dictionary, player : SWFPlayer, smooth : int = 5) -> Array
 			player.sprite_current_animation[id] = ""
 			player.sprite_current_anim_frame[id] = 0
 			sprite.full_sprite_name = "({id}) {name}.".format({"id": str(id), "name": sprite.sprite_name})
+			if sprite.sprite_name.is_empty():
+				sprite.sprite_name = "DefineSprite" + str(id)
 	
 	player.animated_sprite_id = int(data["Sprites"].keys()[-1])
 	
 	player.center_model()
 	player.file_loaded_right = true
-	return returned_shapes
 
 # Done!
 func export_json_optimized(player : SWFPlayer = null, file_name : String = ""):
@@ -233,7 +233,6 @@ func build_animations(player: SWFPlayer, root_sprite_id: int, bones_list: Array)
 
 						if add_keyframe:
 							last_values[bone_id][element_str] = val
-							var element_index = match_element_keyframe(element_str)
 							anim["keyframes"].append({
 								"frame": local_frame,
 								"bone_id": bone_id,
@@ -369,35 +368,6 @@ func calculate_shortest_angle(from, to) -> float :
 	delta = fposmod(delta - PI, TAU) - PI
 	return delta
 
-# returns the matched keyframe type, since again.. skf seems to have two checks??
-func match_element_keyframe(element_str) -> int:
-	var element_index : int = 0
-	match element_str:
-		"PositionX":
-			element_index = 0
-		"PositionY":
-			element_index = 1
-		"Rotation":
-			element_index = 2
-		"ScaleX":
-			element_index = 3
-		"ScaleY":
-			element_index = 4
-		"Zindex":
-			element_index = 5
-		"Texture":
-			element_index = 6
-		"Hidden":
-			element_index = 8
-		"TintR":
-			element_index = 11
-		"TintG":
-			element_index = 12
-		"TintB":
-			element_index = 13
-		"TintA":
-			element_index = 14
-	return element_index
 
 # -- Misc functions
 # Builds the texture atlas for the Skelform export.
@@ -474,6 +444,19 @@ func export_all_svgs(shapes : Dictionary = {}):
 		if file:
 			file.store_string(svg_str)
 			file.close()
+
+func export_all_scene(player: SWFPlayer):
+	if not player or not player.file_loaded_right:
+		printerr("Player is not loaded or invalid.")
+		return
+		
+	var packed_scene : PackedScene = SceneExporter.export_all_scene(player)
+	var path = scene_file_path.path_join("test_scene.tscn")
+	var error = ResourceSaver.save(packed_scene, path)
+	if error == OK:
+		print("Scene saved successfully to: ", path)
+	else:
+		printerr("Failed to save scene: ", error)
 
 #endregion
 

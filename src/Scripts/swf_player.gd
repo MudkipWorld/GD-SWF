@@ -291,6 +291,3 @@ func draw_curve(start_pt: Vector2, control_pt: Vector2, end_pt: Vector2, color: 
 		var curr = (1-t)*(1-t)*start_pt + 2*(1-t)*t*control_pt + t*t*end_pt
 		draw_line(prev, curr, color, 1)
 		prev = curr
-
-func mark_frame_dirty(prev_frame: SWFClasses.SWFFrame, frame: SWFClasses.SWFFrame):
-	frame.is_dirty = (prev_frame.x != frame.x or prev_frame.y != frame.y or prev_frame.scale_x != frame.scale_x or prev_frame.scale_y != frame.scale_y or prev_frame.rotation != frame.rotation or prev_frame.visible != frame.visible)
